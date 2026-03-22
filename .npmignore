@@ -1,0 +1,16 @@
+example/
+node_modules/
+*.log
+.DS_Store
+*.xcuserstate
+*.xcworkspace
+build/
+*.iml
+.idea/
+.vscode/
+*.pem
+*.p12
+*.keystore
+.git/
+.gitignore
+
