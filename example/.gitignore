@@ -1,19 +1,6 @@
-node_modules/
-dist/
-*.log
+# OSX
+#
 .DS_Store
-*.xcuserstate
-*.xcworkspace
-# Allow example app workspace (CocoaPods); still ignore other *.xcworkspace
-!example/**/example.xcworkspace/
-!example/**/example.xcworkspace/**
-build/
-*.iml
-.idea/
-.vscode/
-*.pem
-*.p12
-*.keystore
 
 # Xcode
 #
