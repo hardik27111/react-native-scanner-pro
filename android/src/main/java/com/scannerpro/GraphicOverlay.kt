@@ -45,7 +45,10 @@ class GraphicOverlay(context: Context, attrs: AttributeSet? = null) : View(conte
   
   private var isImageFlipped = false
   private var needUpdateTransformation = true
-  
+
+  /** Drawn under barcode graphics; same compositing layer as boxes (above PreviewView surface). */
+  private var scanRegionDrawConfig: ScanRegionConfig = ScanRegionConfig.default()
+
   init {
     addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
       needUpdateTransformation = true
@@ -157,7 +160,12 @@ class GraphicOverlay(context: Context, attrs: AttributeSet? = null) : View(conte
   fun getImageWidth(): Int = imageWidth
   
   fun getImageHeight(): Int = imageHeight
-  
+
+  fun setScanRegionVisual(config: ScanRegionConfig) {
+    scanRegionDrawConfig = config
+    postInvalidate()
+  }
+
   private fun updateTransformationIfNeeded() {
     if (!needUpdateTransformation || imageWidth <= 0 || imageHeight <= 0) {
       return
@@ -192,10 +200,11 @@ class GraphicOverlay(context: Context, attrs: AttributeSet? = null) : View(conte
   /** Draws the overlay with its associated graphic objects. */
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-    
+
     synchronized(lock) {
       updateTransformationIfNeeded()
-      
+      ScanRegionRenderer.draw(canvas, context, scanRegionDrawConfig, width, height)
+
       for (graphic in graphics) {
         graphic.draw(canvas)
       }

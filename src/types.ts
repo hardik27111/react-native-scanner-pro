@@ -13,6 +13,7 @@ export interface ScanResult {
   };
 }
 
+/** Color props: `#RRGGBB` or `#RRGGBBAA` (alpha last byte), same as Android. */
 export interface ScanRegionConfig {
   enabled: boolean;
   width?: number;
@@ -34,6 +35,7 @@ export interface ScanRegionConfig {
   hintTextSize?: number;
 }
 
+/** Color props: `#RRGGBB` or `#RRGGBBAA` (alpha last byte). Use translucent fill, e.g. `#30FFFFFF`, to keep the QR visible. */
 export interface BoundingBoxConfig {
   enabled?: boolean;
   borderColor?: string;

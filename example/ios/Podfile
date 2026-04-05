@@ -31,5 +31,30 @@ target 'example' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # fmt 11.0.x: -DFMT_USE_CONSTEVAL=0 does NOT work — base.h redefines the macro for Clang >= 1101.
+    # Force off the consteval format-string path (Xcode / Apple Clang CWG2765). See fmt#4264, RN#55601.
+    fmt_base = File.join(installer.sandbox.root, 'fmt/include/fmt/base.h')
+    if File.exist?(fmt_base)
+      content = File.read(fmt_base)
+      unless content.include?('// [react-native-ios] FMT_USE_CONSTEVAL off')
+        patched = content
+          .sub(
+            "#elif defined(__cpp_consteval)\n#  define FMT_USE_CONSTEVAL 1",
+            "#elif defined(__cpp_consteval)\n#  define FMT_USE_CONSTEVAL 0  // [react-native-ios] FMT_USE_CONSTEVAL off"
+          )
+          .sub(
+            "#elif FMT_GCC_VERSION >= 1002 || FMT_CLANG_VERSION >= 1101\n#  define FMT_USE_CONSTEVAL 1",
+            "#elif FMT_GCC_VERSION >= 1002 || FMT_CLANG_VERSION >= 1101\n#  define FMT_USE_CONSTEVAL 0  // [react-native-ios] FMT_USE_CONSTEVAL off"
+          )
+        if patched != content
+          File.chmod(0o644, fmt_base)
+          File.write(fmt_base, patched)
+          Pod::UI.puts 'Patched Pods/fmt/include/fmt/base.h (FMT_USE_CONSTEVAL=0 for Xcode).'.green
+        else
+          Pod::UI.puts 'fmt base.h consteval block not found; skip patch (fmt version changed?)'.yellow
+        end
+      end
+    end
   end
 end

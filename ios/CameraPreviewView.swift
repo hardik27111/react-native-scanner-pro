@@ -17,6 +17,32 @@ import UIKit
 import AVFoundation
 import Vision
 
+/// `#RRGGBB` or `#RRGGBBAA` (alpha last), matching Android `BoundingBoxStyle` / `ScanRegionConfig` parsing.
+fileprivate func uiColorFromHexString(_ hex: String?) -> UIColor? {
+  guard var h = hex?.trimmingCharacters(in: .whitespacesAndNewlines), !h.isEmpty else { return nil }
+  if h.hasPrefix("#") { h.removeFirst() }
+  switch h.count {
+  case 6:
+    guard let val = UInt32(h, radix: 16) else { return nil }
+    return UIColor(
+      red: CGFloat((val >> 16) & 0xFF) / 255,
+      green: CGFloat((val >> 8) & 0xFF) / 255,
+      blue: CGFloat(val & 0xFF) / 255,
+      alpha: 1
+    )
+  case 8:
+    guard let val = UInt32(h, radix: 16) else { return nil }
+    return UIColor(
+      red: CGFloat((val >> 24) & 0xFF) / 255,
+      green: CGFloat((val >> 16) & 0xFF) / 255,
+      blue: CGFloat((val >> 8) & 0xFF) / 255,
+      alpha: CGFloat(val & 0xFF) / 255
+    )
+  default:
+    return nil
+  }
+}
+
 // MARK: - CameraPreviewView
 
 @objc(CameraPreviewView)
@@ -319,7 +345,11 @@ class CameraPreviewView: UIView {
 
     for ob in obs {
       guard let box = convertBoundingBox(ob.boundingBox) else { continue }
-      if scanRegionEnabled && !scanRegionRect.contains(box) { continue }
+      // Require the full barcode rect inside the scan region (matches the viewfinder hole, not just its center).
+      if scanRegionEnabled {
+        guard scanRegionRect.width > 0, scanRegionRect.height > 0 else { continue }
+        if !scanRegionRect.contains(box) { continue }
+      }
       boxEntries.append((box, ob.payloadStringValue))
       if let payload = ob.payloadStringValue, !payload.isEmpty {
         validObs.append((ob, box))
@@ -558,17 +588,7 @@ struct ScanRegionConfig {
     return CGRect(x: cx - widthPt / 2, y: cy - heightPt / 2, width: widthPt, height: heightPt)
   }
 
-  private static func color(_ hex: String?) -> UIColor? {
-    guard var h = hex else { return nil }
-    h = h.trimmingCharacters(in: .init(charactersIn: "#"))
-    guard h.count == 6, let val = UInt32(h, radix: 16) else { return nil }
-    return UIColor(
-      red:   CGFloat((val >> 16) & 0xFF) / 255,
-      green: CGFloat((val >>  8) & 0xFF) / 255,
-      blue:  CGFloat( val        & 0xFF) / 255,
-      alpha: 1
-    )
-  }
+  private static func color(_ hex: String?) -> UIColor? { uiColorFromHexString(hex) }
 }
 
 // MARK: - ScanRegionOverlayLayer (CALayer — draws into the layer tree, not a separate UIView)
@@ -841,26 +861,7 @@ struct BoundingBoxStyleConfig {
     textBackgroundColor = Self.color(dict["textBackgroundColor"] as? String) ?? .white
   }
 
-  private static func color(_ hex: String?) -> UIColor? {
-    guard var h = hex else { return nil }
-    h = h.trimmingCharacters(in: .init(charactersIn: "#"))
-    if h.count == 8 {
-      guard let val = UInt64(h, radix: 16) else { return nil }
-      return UIColor(
-        red:   CGFloat((val >> 24) & 0xFF) / 255,
-        green: CGFloat((val >> 16) & 0xFF) / 255,
-        blue:  CGFloat((val >>  8) & 0xFF) / 255,
-        alpha: CGFloat( val        & 0xFF) / 255
-      )
-    }
-    guard h.count == 6, let val = UInt32(h, radix: 16) else { return nil }
-    return UIColor(
-      red:   CGFloat((val >> 16) & 0xFF) / 255,
-      green: CGFloat((val >>  8) & 0xFF) / 255,
-      blue:  CGFloat( val        & 0xFF) / 255,
-      alpha: 1
-    )
-  }
+  private static func color(_ hex: String?) -> UIColor? { uiColorFromHexString(hex) }
 }
 
 // MARK: - BoundingBoxOverlayView

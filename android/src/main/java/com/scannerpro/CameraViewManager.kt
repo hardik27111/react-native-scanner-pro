@@ -96,7 +96,8 @@ class CameraViewManager :
   @ReactProp(name = "scanRegion")
   fun setScanRegion(view: CameraView, scanRegion: com.facebook.react.bridge.ReadableMap?) {
     if (scanRegion != null) {
-      val map = scanRegion.toHashMap() as? Map<String, Any> ?: emptyMap()
+      @Suppress("UNCHECKED_CAST")
+      val map = scanRegion.toHashMap() as Map<String, Any?>
       val config = ScanRegionConfig.fromMap(map, view.context)
       view.setScanRegion(config)
     } else {

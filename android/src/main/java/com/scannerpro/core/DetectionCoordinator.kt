@@ -208,11 +208,11 @@ class DetectionCoordinator(
    */
   private fun isInScanRegion(box: RectF): Boolean {
     if (!config.scanRegion.enabled) return true
-    
+
     val region = scanRegionRect ?: return true
-    
-    // Require entire box to be within region
-    return region.contains(box)
+
+    return box.left >= region.left && box.top >= region.top &&
+      box.right <= region.right && box.bottom <= region.bottom
   }
   
   /**

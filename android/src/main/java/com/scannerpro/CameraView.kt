@@ -8,6 +8,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
+import android.view.View
 import android.widget.FrameLayout
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -43,7 +44,9 @@ class CameraView(context: Context) : FrameLayout(context) {
   private val graphicOverlay: GraphicOverlay = GraphicOverlay(context)
   private val scanAnimationOverlay: ScanAnimationOverlay = ScanAnimationOverlay(context)
   private val proScannerOverlay: ProScannerOverlay = ProScannerOverlay(context)
-  private val scanRegionOverlay: ScanRegionOverlay = ScanRegionOverlay(context)
+
+  /** When false, barcode rects are hidden but [GraphicOverlay] may still show scan region UI. */
+  private var boundingBoxLayerEnabled: Boolean = true
   
   // Vision processor - can be swapped for different detection types
   private var visionProcessor: VisionProcessor<*>? = null
@@ -83,16 +86,8 @@ class CameraView(context: Context) : FrameLayout(context) {
     previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
 
     addView(previewView)
-    
-    // Add scan region overlay (dim background with frame cutout)
-    scanRegionOverlay.layoutParams = LayoutParams(
-      LayoutParams.MATCH_PARENT,
-      LayoutParams.MATCH_PARENT
-    )
-    scanRegionOverlay.visibility = GONE
-    addView(scanRegionOverlay)
-    
-    // Add graphic overlay on top
+
+    // MLKit boxes + scan region mask (drawn in GraphicOverlay so it composites above PreviewView's surface)
     graphicOverlay.layoutParams = LayoutParams(
       LayoutParams.MATCH_PARENT,
       LayoutParams.MATCH_PARENT
@@ -141,8 +136,14 @@ class CameraView(context: Context) : FrameLayout(context) {
   }
 
   fun setBoundingBoxConfig(style: BoundingBoxStyle) {
-    graphicOverlay.visibility = if (style.enabled) VISIBLE else GONE
+    boundingBoxLayerEnabled = style.enabled
     (visionProcessor as? BarcodeScannerProcessor)?.boundingBoxStyle = style
+    syncGraphicOverlayVisibility()
+  }
+
+  private fun syncGraphicOverlayVisibility() {
+    val show = boundingBoxLayerEnabled || scanRegionConfig.enabled
+    graphicOverlay.visibility = if (show) View.VISIBLE else View.GONE
   }
 
   /**
@@ -150,10 +151,9 @@ class CameraView(context: Context) : FrameLayout(context) {
    */
   fun setScanRegion(config: ScanRegionConfig) {
     scanRegionConfig = config
-    scanRegionOverlay.setConfig(config)
-    
-    // Update processor with new config
+    graphicOverlay.setScanRegionVisual(config)
     (visionProcessor as? BarcodeScannerProcessor)?.setScanRegionConfig(config)
+    syncGraphicOverlayVisibility()
   }
 
   /**

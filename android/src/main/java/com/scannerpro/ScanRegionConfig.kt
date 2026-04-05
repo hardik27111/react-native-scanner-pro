@@ -44,14 +44,16 @@ data class ScanRegionConfig(
   }
   
   /**
-   * Check if a bounding box is fully within the scan region
+   * True when the whole barcode rect lies inside the scan region (same rule as iOS).
    */
   fun isInScanRegion(boundingBox: RectF, viewWidth: Int, viewHeight: Int): Boolean {
-    if (!enabled) return true // If disabled, all detections are valid
-    
+    if (!enabled) return true
+    if (viewWidth <= 0 || viewHeight <= 0) return true
+
     val scanRect = getScanRect(viewWidth, viewHeight)
-    // Require the entire barcode to be within the scan region
-    return scanRect.contains(boundingBox)
+    val b = boundingBox
+    return b.left >= scanRect.left && b.top >= scanRect.top &&
+      b.right <= scanRect.right && b.bottom <= scanRect.bottom
   }
   
   companion object {
@@ -64,11 +66,11 @@ data class ScanRegionConfig(
      * Create from map (for React Native props)
      * Converts dp values from React Native to pixels for Android
      */
-    fun fromMap(map: Map<String, Any>, context: Context): ScanRegionConfig {
+    fun fromMap(map: Map<String, Any?>, context: Context): ScanRegionConfig {
       val density = context.resources.displayMetrics.density
-      
+
       return ScanRegionConfig(
-        enabled = map["enabled"] as? Boolean ?: false,
+        enabled = readBool(map, "enabled", false),
         width = dpToPx((map["width"] as? Number)?.toFloat() ?: 300f, density),
         height = dpToPx((map["height"] as? Number)?.toFloat() ?: 300f, density),
         offsetX = dpToPx((map["offsetX"] as? Number)?.toFloat() ?: 0f, density),
@@ -78,15 +80,23 @@ data class ScanRegionConfig(
         borderWidth = dpToPx((map["borderWidth"] as? Number)?.toFloat() ?: 3f, density),
         dimColor = parseColor(map["dimColor"] as? String) ?: android.graphics.Color.BLACK,
         dimAlpha = (map["dimAlpha"] as? Number)?.toInt() ?: 180,
-        showBorder = map["showBorder"] as? Boolean ?: true,
-        showCorners = map["showCorners"] as? Boolean ?: true,
+        showBorder = readBool(map, "showBorder", true),
+        showCorners = readBool(map, "showCorners", true),
         cornerLength = dpToPx((map["cornerLength"] as? Number)?.toFloat() ?: 30f, density),
         cornerWidth = dpToPx((map["cornerWidth"] as? Number)?.toFloat() ?: 4f, density),
-        showHint = map["showHint"] as? Boolean ?: true,
+        showHint = readBool(map, "showHint", true),
         hintText = map["hintText"] as? String ?: "Align QR code within frame",
         hintTextColor = parseColor(map["hintTextColor"] as? String) ?: android.graphics.Color.WHITE,
         hintTextSize = (map["hintTextSize"] as? Number)?.toFloat() ?: 14f
       )
+    }
+
+    private fun readBool(map: Map<String, Any?>, key: String, default: Boolean): Boolean {
+      return when (val v = map[key]) {
+        is Boolean -> v
+        is Number -> v.toInt() != 0
+        else -> default
+      }
     }
     
     /**

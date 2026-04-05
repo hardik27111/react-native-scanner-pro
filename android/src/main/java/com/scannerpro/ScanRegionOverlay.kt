@@ -1,8 +1,82 @@
 package com.scannerpro
 
 import android.content.Context
-import android.graphics.*
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.view.View
+
+/**
+ * Shared drawing for scan region (dim + cutout + border + corners + hint).
+ * Used by [ScanRegionOverlay] and [GraphicOverlay] so the mask is painted in the same layer as
+ * ML overlays — [PreviewView]'s internal SurfaceView often draws above intermediate siblings.
+ */
+internal object ScanRegionRenderer {
+
+  private val dimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+  private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    style = Paint.Style.STROKE
+    strokeCap = Paint.Cap.ROUND
+  }
+  private val cornerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    style = Paint.Style.STROKE
+    strokeCap = Paint.Cap.ROUND
+  }
+  private val hintTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    textAlign = Paint.Align.CENTER
+  }
+
+  fun draw(canvas: Canvas, context: Context, config: ScanRegionConfig, width: Int, height: Int) {
+    if (!config.enabled || width <= 0 || height <= 0) return
+
+    val scanRect = config.getScanRect(width, height)
+    val w = width.toFloat()
+    val h = height.toFloat()
+    val density = context.resources.displayMetrics.density
+
+    dimPaint.color = config.dimColor
+    dimPaint.alpha = config.dimAlpha
+
+    borderPaint.color = config.borderColor
+    borderPaint.strokeWidth = config.borderWidth
+
+    cornerPaint.color = config.borderColor
+    cornerPaint.strokeWidth = config.cornerWidth
+
+    hintTextPaint.color = config.hintTextColor
+    hintTextPaint.textSize = config.hintTextSize * density
+
+    val dimPath = Path().apply {
+      addRect(0f, 0f, w, h, Path.Direction.CW)
+      addRoundRect(scanRect, config.cornerRadius, config.cornerRadius, Path.Direction.CW)
+      fillType = Path.FillType.EVEN_ODD
+    }
+    canvas.drawPath(dimPath, dimPaint)
+
+    if (config.showBorder) {
+      canvas.drawRoundRect(scanRect, config.cornerRadius, config.cornerRadius, borderPaint)
+    }
+    if (config.showCorners) {
+      drawCornerBrackets(canvas, scanRect, config.cornerLength, cornerPaint)
+    }
+    if (config.showHint && config.hintText.isNotEmpty()) {
+      val textY = scanRect.bottom + 40f * density
+      canvas.drawText(config.hintText, scanRect.centerX(), textY, hintTextPaint)
+    }
+  }
+
+  private fun drawCornerBrackets(canvas: Canvas, rect: RectF, cornerLen: Float, paint: Paint) {
+    canvas.drawLine(rect.left, rect.top, rect.left + cornerLen, rect.top, paint)
+    canvas.drawLine(rect.left, rect.top, rect.left, rect.top + cornerLen, paint)
+    canvas.drawLine(rect.right, rect.top, rect.right - cornerLen, rect.top, paint)
+    canvas.drawLine(rect.right, rect.top, rect.right, rect.top + cornerLen, paint)
+    canvas.drawLine(rect.left, rect.bottom, rect.left + cornerLen, rect.bottom, paint)
+    canvas.drawLine(rect.left, rect.bottom, rect.left, rect.bottom - cornerLen, paint)
+    canvas.drawLine(rect.right, rect.bottom, rect.right - cornerLen, rect.bottom, paint)
+    canvas.drawLine(rect.right, rect.bottom, rect.right, rect.bottom - cornerLen, paint)
+  }
+}
 
 /**
  * Overlay that shows a scan region with dim background and configurable frame.
@@ -11,52 +85,12 @@ import android.view.View
 class ScanRegionOverlay(context: Context) : View(context) {
   
   private var config: ScanRegionConfig = ScanRegionConfig.default()
-  
-  // Paint objects (reused to avoid allocations)
-  private val dimPaint = Paint().apply {
-    style = Paint.Style.FILL
-  }
-  
-  private val borderPaint = Paint().apply {
-    style = Paint.Style.STROKE
-    isAntiAlias = true
-    strokeCap = Paint.Cap.ROUND
-  }
-  
-  private val cornerPaint = Paint().apply {
-    style = Paint.Style.STROKE
-    isAntiAlias = true
-    strokeCap = Paint.Cap.ROUND
-  }
-  
-  private val hintTextPaint = Paint().apply {
-    isAntiAlias = true
-    textAlign = Paint.Align.CENTER
-  }
-  
-  private val cutoutPaint = Paint().apply {
-    xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-  }
-  
+
   /**
    * Update the scan region configuration
    */
   fun setConfig(newConfig: ScanRegionConfig) {
     config = newConfig
-    
-    // Update paint colors
-    dimPaint.color = config.dimColor
-    dimPaint.alpha = config.dimAlpha
-    
-    borderPaint.color = config.borderColor
-    borderPaint.strokeWidth = config.borderWidth
-    
-    cornerPaint.color = config.borderColor
-    cornerPaint.strokeWidth = config.cornerWidth
-    
-    hintTextPaint.color = config.hintTextColor
-    hintTextPaint.textSize = config.hintTextSize * resources.displayMetrics.density
-    
     visibility = if (config.enabled) VISIBLE else GONE
     invalidate()
   }
@@ -70,67 +104,7 @@ class ScanRegionOverlay(context: Context) : View(context) {
   
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-    
-    if (!config.enabled || width == 0 || height == 0) return
-    
-    val scanRect = getScanRect()
-    
-    // Draw dim overlay with cutout using layer
-    val layerId = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
-    
-    // Draw full screen dim
-    canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dimPaint)
-    
-    // Cut out the scan region
-    canvas.drawRoundRect(scanRect, config.cornerRadius, config.cornerRadius, cutoutPaint)
-    
-    canvas.restoreToCount(layerId)
-    
-    // Draw border around scan region
-    if (config.showBorder) {
-      canvas.drawRoundRect(scanRect, config.cornerRadius, config.cornerRadius, borderPaint)
-    }
-    
-    // Draw corner brackets
-    if (config.showCorners) {
-      drawCornerBrackets(canvas, scanRect)
-    }
-    
-    // Draw hint text
-    if (config.showHint && config.hintText.isNotEmpty()) {
-      drawHintText(canvas, scanRect)
-    }
-  }
-  
-  /**
-   * Draw L-shaped corner brackets
-   */
-  private fun drawCornerBrackets(canvas: Canvas, rect: RectF) {
-    val cornerLen = config.cornerLength
-    
-    // Top-left
-    canvas.drawLine(rect.left, rect.top, rect.left + cornerLen, rect.top, cornerPaint)
-    canvas.drawLine(rect.left, rect.top, rect.left, rect.top + cornerLen, cornerPaint)
-    
-    // Top-right
-    canvas.drawLine(rect.right, rect.top, rect.right - cornerLen, rect.top, cornerPaint)
-    canvas.drawLine(rect.right, rect.top, rect.right, rect.top + cornerLen, cornerPaint)
-    
-    // Bottom-left
-    canvas.drawLine(rect.left, rect.bottom, rect.left + cornerLen, rect.bottom, cornerPaint)
-    canvas.drawLine(rect.left, rect.bottom, rect.left, rect.bottom - cornerLen, cornerPaint)
-    
-    // Bottom-right
-    canvas.drawLine(rect.right, rect.bottom, rect.right - cornerLen, rect.bottom, cornerPaint)
-    canvas.drawLine(rect.right, rect.bottom, rect.right, rect.bottom - cornerLen, cornerPaint)
-  }
-  
-  /**
-   * Draw hint text below scan region
-   */
-  private fun drawHintText(canvas: Canvas, rect: RectF) {
-    val textY = rect.bottom + 40f * resources.displayMetrics.density
-    canvas.drawText(config.hintText, rect.centerX(), textY, hintTextPaint)
+    ScanRegionRenderer.draw(canvas, context, config, width, height)
   }
 }
 
