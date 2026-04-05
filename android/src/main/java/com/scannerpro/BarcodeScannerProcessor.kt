@@ -28,9 +28,11 @@ class BarcodeScannerProcessor(
   
   private val barcodeScanner: BarcodeScanner
   private val stabilityTracker = DetectionStabilityTracker(
-    requiredStableFrames = 3,  // Must be stable for 3 consecutive frames
-    maxDistanceThreshold = 50f  // Max 50px movement allowed
+    requiredStableFrames = 3,
+    maxDistanceThreshold = 50f
   )
+  
+  var boundingBoxStyle: BoundingBoxStyle = BoundingBoxStyle()
   
   private var scanRegionConfig: ScanRegionConfig = ScanRegionConfig.default()
   private var viewWidth: Int = 0
@@ -50,46 +52,48 @@ class BarcodeScannerProcessor(
   }
   
   override fun onSuccess(results: List<Barcode>, graphicOverlay: GraphicOverlay) {
-    // Update view dimensions for scan region check
     viewWidth = graphicOverlay.width
     viewHeight = graphicOverlay.height
     
     if (results.isEmpty()) {
       Log.v(TAG, "No barcode detected")
       stabilityTracker.reset()
-      onLiveDetection?.invoke(null, null) // Notify no detection
+      onLiveDetection?.invoke(null, null)
       return
     }
-    
-    // Get the first (most prominent) barcode
-    val barcode = results.firstOrNull() ?: return
-    val rawValue = barcode.rawValue ?: return
-    val boundingBox = barcode.boundingBox ?: return
-    
-    // Transform bounding box to screen coordinates
-    val screenRect = transformBoundingBox(boundingBox, graphicOverlay)
-    
-    // Filter by scan region if enabled
-    if (scanRegionConfig.enabled && !scanRegionConfig.isInScanRegion(screenRect, viewWidth, viewHeight)) {
-      Log.v(TAG, "Barcode outside scan region: $rawValue")
+
+    // Filter barcodes by scan region and draw ALL visible ones
+    val validBarcodes = mutableListOf<Pair<Barcode, RectF>>()
+
+    for (barcode in results) {
+      val box = barcode.boundingBox ?: continue
+      val screenRect = transformBoundingBox(box, graphicOverlay)
+      if (scanRegionConfig.enabled && !scanRegionConfig.isInScanRegion(screenRect, viewWidth, viewHeight)) {
+        continue
+      }
+      validBarcodes.add(barcode to screenRect)
+
+      // Draw bounding box for every detected barcode
+      if (boundingBoxStyle.enabled) {
+        graphicOverlay.add(BarcodeGraphic(graphicOverlay, barcode, boundingBoxStyle))
+      }
+    }
+
+    if (validBarcodes.isEmpty()) {
       stabilityTracker.reset()
       onLiveDetection?.invoke(null, null)
       return
     }
-    
-    // Notify live detection (for pro scanner overlay)
-    onLiveDetection?.invoke(barcode, screenRect)
-    
-    // Check if detection is stable
-    val stableBarcode = stabilityTracker.processDetection(barcode, screenRect)
-    
+
+    val (primaryBarcode, primaryRect) = validBarcodes.first()
+    val rawValue = primaryBarcode.rawValue ?: return
+
+    onLiveDetection?.invoke(primaryBarcode, primaryRect)
+
+    val stableBarcode = stabilityTracker.processDetection(primaryBarcode, primaryRect)
     if (stableBarcode != null) {
-      // Stable detection achieved! Notify for freeze frame
       Log.d(TAG, "Stable detection: $rawValue")
-      onStableDetection?.invoke(stableBarcode, screenRect)
-    } else {
-      // Still tracking, show live graphics
-      graphicOverlay.add(BarcodeGraphic(graphicOverlay, barcode))
+      onStableDetection?.invoke(stableBarcode, primaryRect)
     }
   }
   

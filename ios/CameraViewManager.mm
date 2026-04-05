@@ -62,12 +62,14 @@ RCT_EXPORT_MODULE(CameraView)
 // MARK: - Props
 // KVC-based — works as long as Swift properties are @objc.
 
-RCT_EXPORT_VIEW_PROPERTY(autoStart,    BOOL)
-RCT_EXPORT_VIEW_PROPERTY(torch,        BOOL)
-RCT_EXPORT_VIEW_PROPERTY(enableHaptic, BOOL)
-RCT_EXPORT_VIEW_PROPERTY(enableSound,  BOOL)
-RCT_EXPORT_VIEW_PROPERTY(proScanner,   BOOL)
-RCT_EXPORT_VIEW_PROPERTY(scanRegion,   NSDictionary)
+RCT_EXPORT_VIEW_PROPERTY(autoStart,         BOOL)
+RCT_EXPORT_VIEW_PROPERTY(torch,            BOOL)
+RCT_EXPORT_VIEW_PROPERTY(enableHaptic,     BOOL)
+RCT_EXPORT_VIEW_PROPERTY(enableSound,      BOOL)
+RCT_EXPORT_VIEW_PROPERTY(proScanner,       BOOL)
+RCT_EXPORT_VIEW_PROPERTY(enableFreezeFrame, BOOL)
+RCT_EXPORT_VIEW_PROPERTY(boundingBox,      NSDictionary)
+RCT_EXPORT_VIEW_PROPERTY(scanRegion,       NSDictionary)
 
 // MARK: - Events
 // Swift declares these as ((NSDictionary) -> Void)? which is binary-compatible

@@ -57,12 +57,42 @@ class CameraViewManager :
       view.stopCamera()
     }
   }
-  
+
   @ReactProp(name = "proScanner", defaultBoolean = false)
   fun setProScanner(view: CameraView, value: Boolean) {
     view.setProScannerMode(value)
   }
-  
+
+  @ReactProp(name = "torch", defaultBoolean = false)
+  fun setTorch(view: CameraView, value: Boolean) {
+    view.setTorchEnabled(value)
+  }
+
+  @ReactProp(name = "enableHaptic", defaultBoolean = true)
+  fun setEnableHaptic(view: CameraView, value: Boolean) {
+    view.enableHaptic = value
+  }
+
+  @ReactProp(name = "enableSound", defaultBoolean = false)
+  fun setEnableSound(view: CameraView, value: Boolean) {
+    view.enableSound = value
+  }
+
+  @ReactProp(name = "enableFreezeFrame", defaultBoolean = false)
+  fun setEnableFreezeFrame(view: CameraView, value: Boolean) {
+    view.enableFreezeFrame = value
+  }
+
+  @ReactProp(name = "boundingBox")
+  fun setBoundingBox(view: CameraView, config: com.facebook.react.bridge.ReadableMap?) {
+    if (config != null) {
+      val map = config.toHashMap() as? Map<String, Any?> ?: emptyMap()
+      view.setBoundingBoxConfig(BoundingBoxStyle.fromMap(map))
+    } else {
+      view.setBoundingBoxConfig(BoundingBoxStyle(enabled = false))
+    }
+  }
+
   @ReactProp(name = "scanRegion")
   fun setScanRegion(view: CameraView, scanRegion: com.facebook.react.bridge.ReadableMap?) {
     if (scanRegion != null) {

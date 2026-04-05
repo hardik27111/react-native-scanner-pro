@@ -35,11 +35,18 @@ class CameraPreviewView: UIView {
     didSet { applyTorch(torch) }
   }
 
-  @objc var enableHaptic: Bool = true
+  /// Kept for API parity with Android; iOS does not trigger haptics from native code.
+  @objc var enableHaptic: Bool = false
   @objc var enableSound:  Bool = false
 
   @objc var proScanner: Bool = false {
     didSet { applyOverlayMode() }
+  }
+
+  @objc var enableFreezeFrame: Bool = false
+
+  @objc var boundingBox: NSDictionary? {
+    didSet { applyBoundingBoxConfig() }
   }
 
   /// JSON-serialised ScanRegionConfig dict — set via RCT_EXPORT_VIEW_PROPERTY
@@ -53,6 +60,14 @@ class CameraPreviewView: UIView {
   private let captureQueue = DispatchQueue(label: "scannerpro.capture", qos: .userInitiated)
   private let detectQueue  = DispatchQueue(label: "scannerpro.detect",  qos: .userInitiated)
 
+  // MARK: Private — capture (Vision + preview must share the same video orientation)
+  private var captureDevicePosition: AVCaptureDevice.Position = .back
+  /// Set alongside `previewLayer.connection` so capture orientation matches Vision.
+  private var videoOutputConnection: AVCaptureConnection?
+  /// Latest buffer dimensions (written on the video queue; read on main for bbox math).
+  private var lastPixelBufferWidth: Int = 0
+  private var lastPixelBufferHeight: Int = 0
+
   // MARK: Private — state
   private var isFrozen   = false
   private var lastValue: String?
@@ -63,6 +78,7 @@ class CameraPreviewView: UIView {
   private let scanRegionLayer = ScanRegionOverlayLayer()
   private let proOverlay      = ProScannerOverlayView()
   private let flashView       = UIView()   // success flash for standard mode
+  private let bbOverlay       = BoundingBoxOverlayView()
 
   // MARK: Private — scan region config
   private var scanRegionEnabled  = false
@@ -94,6 +110,10 @@ class CameraPreviewView: UIView {
     backgroundColor = .black
     clipsToBounds   = true
 
+    // Bounding box overlay (draws all detected barcodes)
+    bbOverlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    addSubview(bbOverlay)
+
     // Flash overlay (standard mode success animation)
     flashView.backgroundColor = UIColor.white.withAlphaComponent(0)
     flashView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -111,7 +131,15 @@ class CameraPreviewView: UIView {
   override func layoutSubviews() {
     super.layoutSubviews()
     previewLayer?.frame = bounds
+    // Preview layer follows interface orientation by default; keep portrait so preview + Vision + rects stay aligned.
+    if let pc = previewLayer?.connection {
+      Self.applyPortraitOrientation(to: pc)
+    }
+    if let vc = videoOutputConnection {
+      Self.applyPortraitOrientation(to: vc)
+    }
     scanRegionLayer.frame = bounds
+    bbOverlay.frame = bounds
     flashView.frame = bounds
     proOverlay.frame = bounds
     updateScanRegionRect()
@@ -150,6 +178,7 @@ class CameraPreviewView: UIView {
         return
       }
       self.captureSession.addInput(input)
+      self.captureDevicePosition = device.position
 
       let output = AVCaptureVideoDataOutput()
       output.videoSettings = [
@@ -166,24 +195,35 @@ class CameraPreviewView: UIView {
       self.captureSession.addOutput(output)
 
       if let conn = output.connection(with: .video) {
-        if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
-        if conn.isVideoMirroringSupported   { conn.isVideoMirrored  = false }
+        if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
+        Self.applyPortraitOrientation(to: conn)
       }
       self.captureSession.commitConfiguration()
 
+      // Preview layer + connections must be configured before frames run; Vision orientation must match
+      // `previewLayer.connection` used by `layerRectConverted(fromMetadataOutputRect:)`.
       DispatchQueue.main.async { [weak self] in
         guard let self else { return }
+        self.videoOutputConnection = output.connection(with: .video)
+        if let c = self.videoOutputConnection {
+          if c.isVideoMirroringSupported { c.isVideoMirrored = false }
+          Self.applyPortraitOrientation(to: c)
+        }
         let layer = AVCaptureVideoPreviewLayer(session: self.captureSession)
         layer.videoGravity = .resizeAspectFill
         layer.frame = self.bounds
         self.layer.insertSublayer(layer, at: 0)
-        // Scan region drawn on top of preview
         self.layer.insertSublayer(self.scanRegionLayer, above: layer)
         self.previewLayer = layer
+        if let pc = layer.connection {
+          Self.applyPortraitOrientation(to: pc)
+        }
         self.updateScanRegionRect()
-      }
 
-      if self.autoStart { self.captureSession.startRunning() }
+        self.captureQueue.async {
+          if self.autoStart { self.captureSession.startRunning() }
+        }
+      }
     }
   }
 
@@ -208,6 +248,7 @@ class CameraPreviewView: UIView {
     stableCount = 0
     lastValue   = nil
     proOverlay.reset()
+    bbOverlay.clearBoxes()
     startSession()
   }
 
@@ -216,6 +257,16 @@ class CameraPreviewView: UIView {
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
       self.proOverlay.isHidden = !self.proScanner
+    }
+  }
+
+  private func applyBoundingBoxConfig() {
+    if let dict = boundingBox {
+      bbOverlay.config = BoundingBoxStyleConfig(dict: dict)
+      bbOverlay.isHidden = !(bbOverlay.config.enabled)
+    } else {
+      bbOverlay.config = BoundingBoxStyleConfig()
+      bbOverlay.isHidden = true
     }
   }
 
@@ -252,74 +303,71 @@ class CameraPreviewView: UIView {
 
   // MARK: - Detection
   private func handleResults(_ results: [Any]) {
-    guard !isFrozen,
-          let obs   = results as? [VNBarcodeObservation],
-          let best  = obs.first,
-          let value = best.payloadStringValue, !value.isEmpty
-    else {
-      if !isFrozen {
-        DispatchQueue.main.async { [weak self] in
-          guard let self, !self.isFrozen else { return }
-          if self.proScanner { self.proOverlay.updateBoundingBox(nil) }
-        }
-        stableCount = 0; lastValue = nil
+    guard !isFrozen, let obs = results as? [VNBarcodeObservation] else { return }
+    // Vision callbacks can run off the main queue; bounding-box mapping uses previewLayer (UIKit).
+    DispatchQueue.main.async { [weak self] in
+      self?.processBarcodeObservations(obs)
+    }
+  }
+
+  private func processBarcodeObservations(_ obs: [VNBarcodeObservation]) {
+    guard !isFrozen else { return }
+
+    // Build bounding box entries for ALL detected barcodes
+    var boxEntries: [(CGRect, String?)] = []
+    var validObs: [(VNBarcodeObservation, CGRect)] = []
+
+    for ob in obs {
+      guard let box = convertBoundingBox(ob.boundingBox) else { continue }
+      if scanRegionEnabled && !scanRegionRect.contains(box) { continue }
+      boxEntries.append((box, ob.payloadStringValue))
+      if let payload = ob.payloadStringValue, !payload.isEmpty {
+        validObs.append((ob, box))
       }
+    }
+
+    if !proScanner {
+      bbOverlay.updateBoxes(boxEntries)
+    }
+
+    guard let (best, viewBox) = validObs.first,
+          let value = best.payloadStringValue, !value.isEmpty else {
+      if proScanner { proOverlay.updateBoundingBox(nil) }
+      stableCount = 0
+      lastValue = nil
       return
     }
 
     // Stability counting
     if value == lastValue { stableCount += 1 } else { lastValue = value; stableCount = 1 }
 
-    // Transform bounding box to view coordinates
-    let viewBox = convertBoundingBox(best.boundingBox)
-
-    // Scan region filter
-    if scanRegionEnabled, let box = viewBox {
-      if !scanRegionRect.contains(box) {
-        stableCount = 0; lastValue = nil
-        DispatchQueue.main.async { [weak self] in
-          guard let self, !self.isFrozen else { return }
-          if self.proScanner { self.proOverlay.updateBoundingBox(nil) }
-        }
-        return
-      }
-    }
-
-    // Live update for pro scanner overlay
-    DispatchQueue.main.async { [weak self] in
-      guard let self, !self.isFrozen else { return }
-      if self.proScanner, let box = viewBox {
-        self.proOverlay.updateBoundingBox(box)
-      }
+    if proScanner {
+      proOverlay.updateBoundingBox(viewBox)
     }
 
     guard stableCount >= stableRequired else { return }
 
-    // Confirmed — freeze and emit
-    isFrozen = true
-    stopSession()
+    if enableFreezeFrame {
+      isFrozen = true
+      stopSession()
 
-    let finalBox = viewBox
-    DispatchQueue.main.async { [weak self] in
-      guard let self else { return }
-      self.triggerHaptic()
-      if self.proScanner {
-        // Pro mode: let overlay animate briefly then emit
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-          self.emitScan(value: value, symbology: best.symbology, box: finalBox)
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            self.resumeScanning()
-          }
+      if proScanner {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+          guard let self else { return }
+          self.emitScan(value: value, symbology: best.symbology, box: viewBox)
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.resumeScanning() }
         }
       } else {
-        // Standard mode: white flash then emit
-        self.playFlashAnimation {
-          self.emitScan(value: value, symbology: best.symbology, box: finalBox)
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.resumeScanning()
-          }
+        playFlashAnimation { [weak self] in
+          guard let self else { return }
+          self.emitScan(value: value, symbology: best.symbology, box: viewBox)
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.resumeScanning() }
         }
       }
+    } else {
+      emitScan(value: value, symbology: best.symbology, box: viewBox)
+      stableCount = 0
+      lastValue = nil
     }
   }
 
@@ -337,21 +385,74 @@ class CameraPreviewView: UIView {
     }
   }
 
-  private func triggerHaptic() {
-    guard enableHaptic else { return }
-    let gen = UIImpactFeedbackGenerator(style: .medium)
-    gen.prepare(); gen.impactOccurred()
+  // MARK: - Coordinate Transform
+  /// Maps Vision's normalized rect (bottom-left origin, oriented image) into `bounds` coordinates
+  /// using the same **aspect-fill** geometry as `AVCaptureVideoPreviewLayer` + `resizeAspectFill`.
+  ///
+  /// `layerRectConverted(fromMetadataOutputRect:)` can disagree with `VNImageRequestHandler`'s
+  /// oriented image space in some host layouts (e.g. React Native), so we use
+  /// `VNImageRectForNormalizedRect` + explicit scale/center math instead.
+  private func convertBoundingBox(_ norm: CGRect) -> CGRect? {
+    guard let layer = previewLayer,
+          lastPixelBufferWidth > 0, lastPixelBufferHeight > 0 else { return nil }
+
+    let orientation = cgImageOrientationForVideoOutput()
+    let (orientedW, orientedH) = Self.orientedImageSize(
+        width: lastPixelBufferWidth,
+        height: lastPixelBufferHeight,
+        orientation: orientation
+    )
+
+    let iw = max(1, Int(orientedW.rounded()))
+    let ih = max(1, Int(orientedH.rounded()))
+
+    // VNImageRectForNormalizedRect: origin is bottom-left in Vision space
+    let pixelRect = VNImageRectForNormalizedRect(norm, iw, ih)
+
+    // Flip Y: Vision origin is bottom-left, UIKit is top-left
+    let flippedY = orientedH - pixelRect.maxY
+
+    let viewW = layer.bounds.width
+    let viewH = layer.bounds.height
+    guard viewW > 0, viewH > 0 else { return nil }
+
+    // resizeAspectFill: scale to fill, centered
+    let scale   = max(viewW / orientedW, viewH / orientedH)
+    let offsetX = (viewW - orientedW * scale) / 2
+    let offsetY = (viewH - orientedH * scale) / 2
+
+    return CGRect(
+        x: pixelRect.origin.x * scale + offsetX,
+        y: flippedY            * scale + offsetY,
+        width:  pixelRect.width  * scale,
+        height: pixelRect.height * scale
+    ).standardized
+}
+
+
+  private static func orientedImageSize(
+    width: Int, height: Int,
+    orientation: CGImagePropertyOrientation
+) -> (CGFloat, CGFloat) {
+    // Buffer is already rotated by AVFoundation (portrait connection),
+    // so width/height are already in the correct orientation.
+    return (CGFloat(width), CGFloat(height))
+}
+
+  /// Same mapping as ML Kit `UIUtilities.imageOrientation` / `VisionImage.orientation`, but driven by
+  /// **`AVCaptureConnection.videoOrientation`** (not `UIDevice`) so it stays in sync with the preview layer.
+  private func cgImageOrientationForVideoOutput() -> CGImagePropertyOrientation {
+    // videoOutputConnection is forced to .portrait in applyPortraitOrientation()
+    // so the buffer is already upright — no additional rotation needed.
+    switch captureDevicePosition {
+    case .front: return .upMirrored  // front cam is mirrored
+    default:     return .up           // back cam, already portrait
+    }
   }
 
-  // MARK: - Coordinate Transform
-  private func convertBoundingBox(_ norm: CGRect) -> CGRect? {
-    guard let layer = previewLayer else { return nil }
-    // Vision origin is bottom-left; AVFoundation origin is top-left
-    let flipped = CGRect(x: norm.origin.x,
-                         y: 1.0 - norm.origin.y - norm.height,
-                         width:  norm.width,
-                         height: norm.height)
-    return layer.layerRectConverted(fromMetadataOutputRect: flipped)
+  private static func applyPortraitOrientation(to connection: AVCaptureConnection) {
+    guard connection.isVideoOrientationSupported else { return }
+    connection.videoOrientation = .portrait
   }
 
   // MARK: - Emit
@@ -395,9 +496,18 @@ class CameraPreviewView: UIView {
 extension CameraPreviewView: AVCaptureVideoDataOutputSampleBufferDelegate {
   func captureOutput(_: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from _: AVCaptureConnection) {
     guard !isFrozen, let px = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-    let handler = VNImageRequestHandler(cvPixelBuffer: px, orientation: .up)
+    lastPixelBufferWidth  = CVPixelBufferGetWidth(px)
+    lastPixelBufferHeight = CVPixelBufferGetHeight(px)
+
+    // After fix you should see: Buffer: 1080×1920, orientation: up, layer: (390×844)
+    let o = cgImageOrientationForVideoOutput()
+    #if DEBUG
+    print("Buffer: \(lastPixelBufferWidth)×\(lastPixelBufferHeight), orientation: \(o.rawValue), layer: \(previewLayer?.bounds.size ?? .zero)")
+    #endif
+
+    let handler = VNImageRequestHandler(cvPixelBuffer: px, orientation: o)
     try? handler.perform([detectionRequest])
-  }
+}
 }
 
 // MARK: - ScanRegionConfig
@@ -691,6 +801,147 @@ class ProScannerOverlayView: UIView {
         options: []
       )
       ctx.restoreGState()
+    }
+  }
+}
+
+// MARK: - BoundingBoxStyleConfig
+struct BoundingBoxStyleConfig {
+  var enabled:             Bool
+  var borderColor:         UIColor
+  var borderWidth:         CGFloat
+  var borderRadius:        CGFloat
+  var fillColor:           UIColor?
+  var showText:            Bool
+  var textColor:           UIColor
+  var textSize:            CGFloat
+  var textBackgroundColor: UIColor
+
+  init() {
+    enabled             = true
+    borderColor         = .white
+    borderWidth         = 4
+    borderRadius        = 12
+    fillColor           = nil
+    showText            = true
+    textColor           = .black
+    textSize            = 14
+    textBackgroundColor = .white
+  }
+
+  init(dict: NSDictionary) {
+    enabled             = dict["enabled"]   as? Bool ?? true
+    borderColor         = Self.color(dict["borderColor"] as? String) ?? .white
+    borderWidth         = dict["borderWidth"] as? CGFloat ?? 4
+    borderRadius        = dict["borderRadius"] as? CGFloat ?? 12
+    fillColor           = Self.color(dict["fillColor"] as? String)
+    showText            = dict["showText"] as? Bool ?? true
+    textColor           = Self.color(dict["textColor"] as? String) ?? .black
+    textSize            = dict["textSize"] as? CGFloat ?? 14
+    textBackgroundColor = Self.color(dict["textBackgroundColor"] as? String) ?? .white
+  }
+
+  private static func color(_ hex: String?) -> UIColor? {
+    guard var h = hex else { return nil }
+    h = h.trimmingCharacters(in: .init(charactersIn: "#"))
+    if h.count == 8 {
+      guard let val = UInt64(h, radix: 16) else { return nil }
+      return UIColor(
+        red:   CGFloat((val >> 24) & 0xFF) / 255,
+        green: CGFloat((val >> 16) & 0xFF) / 255,
+        blue:  CGFloat((val >>  8) & 0xFF) / 255,
+        alpha: CGFloat( val        & 0xFF) / 255
+      )
+    }
+    guard h.count == 6, let val = UInt32(h, radix: 16) else { return nil }
+    return UIColor(
+      red:   CGFloat((val >> 16) & 0xFF) / 255,
+      green: CGFloat((val >>  8) & 0xFF) / 255,
+      blue:  CGFloat( val        & 0xFF) / 255,
+      alpha: 1
+    )
+  }
+}
+
+// MARK: - BoundingBoxOverlayView
+class BoundingBoxOverlayView: UIView {
+
+  var config = BoundingBoxStyleConfig()
+
+  private var boxes: [(CGRect, String?)] = []
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    isOpaque = false
+    backgroundColor = .clear
+    isUserInteractionEnabled = false
+  }
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    isOpaque = false
+    backgroundColor = .clear
+    isUserInteractionEnabled = false
+  }
+
+  func updateBoxes(_ entries: [(CGRect, String?)]) {
+    boxes = entries
+    setNeedsDisplay()
+  }
+
+  func clearBoxes() {
+    boxes = []
+    setNeedsDisplay()
+  }
+
+  override func draw(_ rect: CGRect) {
+    guard let ctx = UIGraphicsGetCurrentContext(), !boxes.isEmpty, config.enabled else { return }
+
+    let c = config
+
+    for (box, text) in boxes {
+      let r = box.insetBy(dx: -6, dy: -6)
+
+      // Fill
+      if let fill = c.fillColor {
+        let fillPath = UIBezierPath(roundedRect: r, cornerRadius: c.borderRadius)
+        ctx.setFillColor(fill.cgColor)
+        ctx.addPath(fillPath.cgPath)
+        ctx.fillPath()
+      }
+
+      // Border
+      let borderPath = UIBezierPath(roundedRect: r, cornerRadius: c.borderRadius)
+      ctx.setStrokeColor(c.borderColor.cgColor)
+      ctx.setLineWidth(c.borderWidth)
+      ctx.addPath(borderPath.cgPath)
+      ctx.strokePath()
+
+      // Text label
+      if c.showText, let txt = text, !txt.isEmpty {
+        let attrs: [NSAttributedString.Key: Any] = [
+          .font: UIFont.systemFont(ofSize: c.textSize, weight: .medium),
+          .foregroundColor: c.textColor,
+        ]
+        let str = NSAttributedString(string: txt, attributes: attrs)
+        let size = str.size()
+        let pad: CGFloat = 4
+        let labelRect = CGRect(
+          x: r.minX,
+          y: r.minY - size.height - pad * 2,
+          width: min(size.width + pad * 2, r.width),
+          height: size.height + pad * 2
+        )
+
+        ctx.setFillColor(c.textBackgroundColor.cgColor)
+        ctx.fill(labelRect)
+
+        UIGraphicsPushContext(ctx)
+        let drawPoint = CGPoint(x: labelRect.minX + pad, y: labelRect.minY + pad)
+        let truncatedRect = CGRect(origin: drawPoint,
+                                   size: CGSize(width: labelRect.width - pad * 2, height: size.height))
+        str.draw(with: truncatedRect, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], context: nil)
+        UIGraphicsPopContext()
+      }
     }
   }
 }

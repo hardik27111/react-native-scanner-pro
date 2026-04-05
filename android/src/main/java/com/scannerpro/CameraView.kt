@@ -1,9 +1,15 @@
 package com.scannerpro
 
 import android.content.Context
-import android.graphics.Bitmap
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import android.widget.FrameLayout
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -15,7 +21,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
-import com.facebook.react.bridge.WritableMap
 import com.facebook.react.uimanager.events.RCTEventEmitter
 import com.google.mlkit.vision.barcode.common.Barcode
 import java.util.concurrent.Executors
@@ -52,9 +57,18 @@ class CameraView(context: Context) : FrameLayout(context) {
   
   // Pro scanner mode flag
   private var isProScannerMode = false
-  
+
   // Scan region configuration
   private var scanRegionConfig: ScanRegionConfig = ScanRegionConfig.default()
+
+  // Camera reference for torch
+  private var camera: Camera? = null
+
+  // Public props
+  var enableHaptic: Boolean = true
+  var enableSound: Boolean = false
+  var enableFreezeFrame: Boolean = false
+  private var pendingTorch: Boolean = false
 
 
 
@@ -117,6 +131,20 @@ class CameraView(context: Context) : FrameLayout(context) {
     }
   }
   
+  fun setTorchEnabled(enabled: Boolean) {
+    val cam = camera
+    if (cam != null && cam.cameraInfo.hasFlashUnit()) {
+      cam.cameraControl.enableTorch(enabled)
+    } else {
+      pendingTorch = enabled
+    }
+  }
+
+  fun setBoundingBoxConfig(style: BoundingBoxStyle) {
+    graphicOverlay.visibility = if (style.enabled) VISIBLE else GONE
+    (visionProcessor as? BarcodeScannerProcessor)?.boundingBoxStyle = style
+  }
+
   /**
    * Set scan region configuration
    */
@@ -237,12 +265,17 @@ class CameraView(context: Context) : FrameLayout(context) {
 
     val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
-    provider.bindToLifecycle(
+    camera = provider.bindToLifecycle(
       lifecycleOwner,
       cameraSelector,
       preview,
       imageAnalysis
     )
+
+    if (pendingTorch) {
+      camera?.cameraControl?.enableTorch(true)
+      pendingTorch = false
+    }
 
     isCameraBound = true
     post {
@@ -282,45 +315,64 @@ class CameraView(context: Context) : FrameLayout(context) {
    */
   private fun handleStableDetection(barcode: Barcode, boundingBox: android.graphics.RectF) {
     if (scanState is ScanState.Frozen) {
-      return // Already frozen
+      return
     }
-    
+
     post {
-      // Enter frozen state
-      scanState = ScanState.Frozen(barcode, boundingBox, null)
-      
-      if (isProScannerMode) {
-        // Pro scanner mode - overlay handles animation
-        // Emit result after a short delay
-        postDelayed({
-          emitScanResult(barcode)
+      triggerHaptic()
+      triggerSound()
+
+      if (enableFreezeFrame) {
+        scanState = ScanState.Frozen(barcode, boundingBox, null)
+
+        if (isProScannerMode) {
           postDelayed({
-            resumeScanning()
-          }, 800)
-        }, 1000) // Let animation complete
-        
-      } else {
-        // Standard mode - use simple animation overlay
-        // Clear live graphics and show frozen box
-        graphicOverlay.clear()
-        graphicOverlay.add(BarcodeGraphic(graphicOverlay, barcode))
-        graphicOverlay.postInvalidate()
-        
-        // Show and start animation overlay
-        scanAnimationOverlay.visibility = VISIBLE
-        scanAnimationOverlay.startAnimation(boundingBox) {
-          // Animation complete - emit result to React Native
-          emitScanResult(barcode)
-          
-          // Auto-resume after a short delay
-          postDelayed({
-            resumeScanning()
-          }, 500)
+            emitScanResult(barcode)
+            postDelayed({ resumeScanning() }, 800)
+          }, 1000)
+        } else {
+          graphicOverlay.clear()
+          graphicOverlay.add(BarcodeGraphic(graphicOverlay, barcode))
+          graphicOverlay.postInvalidate()
+
+          scanAnimationOverlay.visibility = VISIBLE
+          scanAnimationOverlay.startAnimation(boundingBox) {
+            emitScanResult(barcode)
+            postDelayed({ resumeScanning() }, 500)
+          }
         }
+      } else {
+        emitScanResult(barcode)
+        (visionProcessor as? BarcodeScannerProcessor)?.resetStability()
       }
-      
-      Log.d(TAG, "Freeze frame activated for: ${barcode.rawValue}")
     }
+  }
+
+  private fun triggerHaptic() {
+    if (!enableHaptic) return
+    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+    } else {
+      @Suppress("DEPRECATION")
+      context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    }
+    vibrator?.let {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        it.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+      } else {
+        @Suppress("DEPRECATION")
+        it.vibrate(50)
+      }
+    }
+  }
+
+  private fun triggerSound() {
+    if (!enableSound) return
+    try {
+      val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
+      toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 100)
+      postDelayed({ toneGen.release() }, 200)
+    } catch (_: Exception) {}
   }
   
   /**

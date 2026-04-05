@@ -6,11 +6,8 @@ import {
   Platform,
   type ViewStyle,
 } from 'react-native';
-import type { ScanResult, ScanRegionConfig, CameraViewProps } from './types';
+import type { ScanResult, ScanRegionConfig, BoundingBoxConfig, CameraViewProps } from './types';
 
-// 'CameraView' must match:
-//   Android: CameraViewManager.getName() → "CameraView"
-//   iOS:     CameraViewManager.m RCT_EXTERN_MODULE(CameraViewManager) → strips "Manager" → "CameraView"
 const NativeCameraView = requireNativeComponent<CameraViewProps>('CameraView');
 
 interface ScannerProps {
@@ -22,6 +19,8 @@ interface ScannerProps {
   torch?: boolean;
   enableHaptic?: boolean;
   enableSound?: boolean;
+  enableFreezeFrame?: boolean;
+  boundingBox?: BoundingBoxConfig;
 }
 
 export const Scanner = React.forwardRef<any, ScannerProps>(
@@ -33,8 +32,10 @@ export const Scanner = React.forwardRef<any, ScannerProps>(
       proScanner = false,
       scanRegion,
       torch = false,
-      enableHaptic = true,
+      enableHaptic = false,
       enableSound = false,
+      enableFreezeFrame = false,
+      boundingBox,
     },
     ref
   ) => {
@@ -78,6 +79,8 @@ export const Scanner = React.forwardRef<any, ScannerProps>(
         torch={torch}
         enableHaptic={enableHaptic}
         enableSound={enableSound}
+        enableFreezeFrame={enableFreezeFrame}
+        boundingBox={boundingBox}
         onCodeScanned={handleCodeScanned}
       />
     );
@@ -86,4 +89,4 @@ export const Scanner = React.forwardRef<any, ScannerProps>(
 
 Scanner.displayName = 'Scanner';
 
-export type { ScanResult, ScanRegionConfig };
+export type { ScanResult, ScanRegionConfig, BoundingBoxConfig };

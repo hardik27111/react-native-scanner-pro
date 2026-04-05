@@ -34,10 +34,27 @@ export interface ScanRegionConfig {
   hintTextSize?: number;
 }
 
+export interface BoundingBoxConfig {
+  enabled?: boolean;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  fillColor?: string;
+  showText?: boolean;
+  textColor?: string;
+  textSize?: number;
+  textBackgroundColor?: string;
+}
+
 export interface CameraViewProps extends ViewProps {
   autoStart?: boolean;
   proScanner?: boolean;
   scanRegion?: ScanRegionConfig;
+  torch?: boolean;
+  enableHaptic?: boolean;
+  enableSound?: boolean;
+  enableFreezeFrame?: boolean;
+  boundingBox?: BoundingBoxConfig;
   onCodeScanned?: DirectEventHandler<ScanResult>;
 }
 

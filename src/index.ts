@@ -20,4 +20,4 @@ export {
 } from './ScannerView';
 
 // Legacy exports for backward compatibility
-export { Scanner, type ScanResult as LegacyScanResult, type ScanRegionConfig } from './Scanner';
+export { Scanner, type ScanResult as LegacyScanResult, type ScanRegionConfig, type BoundingBoxConfig } from './Scanner';
