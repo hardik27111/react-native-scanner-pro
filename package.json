@@ -1,23 +1,72 @@
 {
   "name": "react-native-scanner-pro",
   "version": "1.0.0",
-  "description": "Production-ready React Native QR scanner with 100% native animations",
+  "description": "React Native QR and barcode scanner: CameraX + ML Kit on Android, AVFoundation + Vision on iOS. Scan region, bounding boxes, torch, haptics, freeze frame.",
   "main": "index.js",
   "types": "src/index.ts",
+  "sideEffects": false,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "react-native",
-    "qr-scanner",
+    "react-native-camera",
+    "react-native-qr-scanner",
+    "react-native-barcode-scanner",
+    "qr",
+    "qr-code",
+    "qrcode",
     "barcode",
+    "barcode-scanner",
+    "code-scanner",
+    "datamatrix",
+    "ean13",
+    "code128",
+    "scanner",
     "mlkit",
-    "native-animations"
+    "ml-kit",
+    "google-ml-kit",
+    "apple-vision",
+    "vision-framework",
+    "on-device",
+    "camera",
+    "camerax",
+    "avfoundation",
+    "ios",
+    "android",
+    "typescript"
   ],
   "author": "",
   "license": "MIT",
+  "homepage": "https://www.npmjs.com/package/react-native-scanner-pro",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hardik27111/react-native-scanner-pro.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hardik27111/react-native-scanner-pro/issues"
+  },
+  "files": [
+    "src",
+    "spec",
+    "android/build.gradle",
+    "android/gradle.properties",
+    "android/settings.gradle",
+    "android/gradlew",
+    "android/gradlew.bat",
+    "android/gradle/wrapper/gradle-wrapper.jar",
+    "android/gradle/wrapper/gradle-wrapper.properties",
+    "android/.editorconfig",
+    "android/src",
+    "ios",
+    "react-native-scanner-pro.podspec",
+    "react-native.config.js",
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
   "peerDependencies": {
-    "react": "*",
+    "react": ">=18.0.0",
     "react-native": ">=0.70.0"
   },
   "devDependencies": {
@@ -33,6 +82,8 @@
     "android": {
       "javaPackageName": "com.scannerpro"
     }
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
-

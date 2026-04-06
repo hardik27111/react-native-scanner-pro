@@ -1,4 +1,3 @@
-// Export main scanner view
 export {
   ScannerView,
   defaultScanRegion,
@@ -19,5 +18,9 @@ export {
   type CameraMetrics,
 } from './ScannerView';
 
-// Legacy exports for backward compatibility
-export { Scanner, type ScanResult as LegacyScanResult, type ScanRegionConfig, type BoundingBoxConfig } from './Scanner';
+export {
+  Scanner,
+  type ScanResult as LegacyScanResult,
+  type ScanRegionConfig,
+  type BoundingBoxConfig,
+} from './Scanner';

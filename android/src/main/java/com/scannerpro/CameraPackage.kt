@@ -10,10 +10,7 @@ class CameraPackage : ReactPackage {
   override fun createViewManagers(
     reactContext: ReactApplicationContext
   ): List<ViewManager<*, *>> {
-    return listOf(
-      CameraViewManager(),  // Legacy view
-      ScannerViewManager()  // New optimized view
-    )
+    return listOf(CameraViewManager(), ScannerViewManager())
   }
 
   override fun createNativeModules(

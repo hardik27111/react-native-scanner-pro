@@ -46,10 +46,8 @@ export const Scanner = React.forwardRef<any, ScannerProps>(
       if (!viewId) return;
 
       if (Platform.OS === 'android') {
-        // Android uses numeric command IDs
         UIManager.dispatchViewManagerCommand(viewId, 'resumeScanning', []);
       } else {
-        // iOS uses the method name string directly
         UIManager.dispatchViewManagerCommand(
           viewId,
           UIManager.getViewManagerConfig('CameraView')?.Commands?.resumeScanning ?? 'resumeScanning',

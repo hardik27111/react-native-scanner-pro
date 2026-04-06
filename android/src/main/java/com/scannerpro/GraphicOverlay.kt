@@ -9,17 +9,7 @@ import java.util.ArrayList
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * A view which renders a series of custom graphics to be overlayed on top of an associated preview
- * (i.e., the camera preview). The creator can add graphics objects, update the objects, and remove
- * them, triggering the appropriate drawing and invalidation within the view.
- *
- * Supports scaling and mirroring of the graphics relative the camera's preview properties. The
- * idea is that detection items are expressed in terms of an image size, but need to be scaled up to
- * the full view size, and also mirrored in the case of the front-facing camera.
- *
- * Based on Google ML Kit vision-quickstart sample
- */
+/** Overlays detection graphics on the preview; maps image coords to view (scale + mirror). ML Kit sample pattern. */
 class GraphicOverlay(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
   
   private val lock = Any()

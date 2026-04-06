@@ -10,12 +10,7 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 
-/**
- * Barcode processor for scanning QR codes with stability tracking.
- * Based on Google ML Kit vision-quickstart sample for stable and accurate detection.
- * 
- * Implements freeze-frame behavior and professional scanner overlay.
- */
+/** ML Kit barcode pipeline with stability gating; feeds [GraphicOverlay] and optional callbacks. */
 class BarcodeScannerProcessor(
   private val context: Context,
   private val onStableDetection: ((Barcode, RectF) -> Unit)? = null,
@@ -39,7 +34,6 @@ class BarcodeScannerProcessor(
   private var viewHeight: Int = 0
   
   init {
-    // Configure for QR codes by default, but can be extended to support more formats
     val options = BarcodeScannerOptions.Builder()
       .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
       .build()

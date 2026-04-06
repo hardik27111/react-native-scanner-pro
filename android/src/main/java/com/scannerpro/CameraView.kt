@@ -26,11 +26,7 @@ import com.facebook.react.uimanager.events.RCTEventEmitter
 import com.google.mlkit.vision.barcode.common.Barcode
 import java.util.concurrent.Executors
 
-/**
- * Main camera view component for React Native.
- * Supports live camera preview with ML Kit vision processing.
- * Implements premium freeze-frame scanning like Apple/Samsung.
- */
+/** RN camera view: CameraX preview, ML Kit barcodes, optional freeze frame and overlays. */
 class CameraView(context: Context) : FrameLayout(context) {
 
   companion object {
@@ -81,20 +77,18 @@ class CameraView(context: Context) : FrameLayout(context) {
       LayoutParams.MATCH_PARENT
     )
 
-    // IMPORTANT: Use COMPATIBLE mode for better stability
     previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
     previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
 
     addView(previewView)
 
-    // MLKit boxes + scan region mask (drawn in GraphicOverlay so it composites above PreviewView's surface)
+    // Overlay above PreviewView surface (boxes + scan region).
     graphicOverlay.layoutParams = LayoutParams(
       LayoutParams.MATCH_PARENT,
       LayoutParams.MATCH_PARENT
     )
     addView(graphicOverlay)
     
-    // Add simple scan animation overlay
     scanAnimationOverlay.layoutParams = LayoutParams(
       LayoutParams.MATCH_PARENT,
       LayoutParams.MATCH_PARENT
@@ -102,7 +96,6 @@ class CameraView(context: Context) : FrameLayout(context) {
     scanAnimationOverlay.visibility = GONE
     addView(scanAnimationOverlay)
     
-    // Add professional scanner overlay
     proScannerOverlay.layoutParams = LayoutParams(
       LayoutParams.MATCH_PARENT,
       LayoutParams.MATCH_PARENT

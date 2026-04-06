@@ -18,7 +18,7 @@ import {
 import {Scanner, ScanResult, BoundingBoxConfig, ScanRegionConfig} from 'react-native-scanner-pro';
 
 const {height: SCREEN_HEIGHT} = Dimensions.get('window');
-const MODAL_HEIGHT = SCREEN_HEIGHT * 0.7;
+const MODAL_HEIGHT = SCREEN_HEIGHT - 100;
 
 interface ScanEntry {
   id: string;
@@ -225,13 +225,20 @@ export default function App() {
       )}
 
       {/* Settings Modal */}
-      <Modal visible={settingsVisible} transparent animationType="none" onRequestClose={closeSettings}>
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={closeSettings} />
-        <Animated.View style={[styles.sheet, {transform: [{translateY: slideAnim}]}]}>
-          <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>Scanner Settings</Text>
-
-          <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <Modal visible={settingsVisible} transparent animationType="slide" onRequestClose={closeSettings}>
+        <View style={styles.modalRoot}>
+          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={closeSettings} />
+          <Animated.View style={[styles.sheet, {transform: [{translateY: slideAnim}]}]}>
+            <View style={styles.handle} />
+            <Text style={styles.sheetTitle}>Scanner Settings</Text>
+            <ScrollView
+              style={styles.scroll}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              automaticallyAdjustKeyboardInsets
+            >
             <Section title="Camera">
               <Toggle label="Torch / Flashlight" value={torch} onToggle={setTorch} />
             </Section>
@@ -304,13 +311,12 @@ export default function App() {
 
             <View style={styles.infoCard}>
               <Text style={styles.infoText}>
-                Colors use hex format: #RRGGBB (8-digit alpha may work on Android; iOS hex parser is 6-digit).
-                With Scan Region enabled, only barcodes fully inside the frame are reported.
-                Set cutout corner radius to 0 for a rectangular hole.
+                Fill color uses hex format: #RRGGBB (8-digit alpha).
               </Text>
             </View>
-          </ScrollView>
-        </Animated.View>
+            </ScrollView>
+          </Animated.View>
+        </View>
       </Modal>
     </View>
   );
@@ -422,12 +428,14 @@ const styles = StyleSheet.create({
   chipType: {color: '#30d158', fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginBottom: 4},
   chipData: {color: '#fff', fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'},
 
-  backdrop: {flex: 1, backgroundColor: 'rgba(0,0,0,0.4)'},
-  sheet: {position: 'absolute', bottom: 0, left: 0, right: 0, height: MODAL_HEIGHT, backgroundColor: '#1c1c1e', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 12},
+  modalRoot: {flex: 1, justifyContent: 'flex-end'},
+  backdrop: {...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)'},
+  sheet: {height: MODAL_HEIGHT, width: '100%', backgroundColor: '#1c1c1e', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 12},
   handle: {width: 36, height: 5, backgroundColor: '#48484a', borderRadius: 3, alignSelf: 'center', marginBottom: 16},
   sheetTitle: {color: '#fff', fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 8},
+  closeButton: {color: '#fff', justifyContent: 'flex-end', alignItems: 'flex-end', padding: 10},
   scroll: {flex: 1},
-  scrollContent: {padding: 20, paddingBottom: 40, gap: 20},
+  scrollContent: {padding: 20, paddingBottom: 32, gap: 20},
 
   section: {gap: 8},
   sectionTitle: {color: '#8e8e93', fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, paddingLeft: 4},

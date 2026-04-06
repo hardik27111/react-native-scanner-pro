@@ -17,26 +17,8 @@ import com.scannerpro.core.*
 import com.scannerpro.vision.VisionMathNative
 
 /**
- * Professional scanner view - production-ready camera component for React Native.
- * 
- * Architecture:
- * 1. CameraLifecycleManager - Camera setup and control
- * 2. VisionMathNative - C++ coordinate transforms and smoothing
- * 3. FrameAnalyzer - ML Kit detection pipeline
- * 4. DetectionCoordinator - Stability tracking and state management
- * 5. Overlay layers - Rendering (existing overlay components)
- * 
- * Performance characteristics:
- * - Zero-allocation hot paths (except ML Kit and unavoidable JNI)
- * - Lock-free state management
- * - Frame gating in C++ to reduce CPU load
- * - Efficient coordinate transforms without GraphicOverlay overhead
- * 
- * Thread safety:
- * - Camera operations on main thread
- * - Image analysis on dedicated thread
- * - C++ operations are thread-safe
- * - Event emission on main thread
+ * Alternate native view: CameraX + ML Kit + optional C++ vision math.
+ * Camera on main thread; analysis on a worker; events back on main.
  */
 class ScannerView(context: Context) : FrameLayout(context) {
   

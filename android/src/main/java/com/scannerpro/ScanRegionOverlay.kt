@@ -7,11 +7,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.view.View
 
-/**
- * Shared drawing for scan region (dim + cutout + border + corners + hint).
- * Used by [ScanRegionOverlay] and [GraphicOverlay] so the mask is painted in the same layer as
- * ML overlays — [PreviewView]'s internal SurfaceView often draws above intermediate siblings.
- */
+/** Dim + cutout + border for the scan window. Shared with [GraphicOverlay] so it sits above the preview surface. */
 internal object ScanRegionRenderer {
 
   private val dimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }

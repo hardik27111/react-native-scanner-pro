@@ -1,16 +1,45 @@
+# App / dev (never publish)
 example/
-node_modules/
-*.log
-.DS_Store
-*.xcuserstate
-*.xcworkspace
-build/
-*.iml
+**/node_modules/
+
+# Git / IDE
+.git/
+.gitignore
 .idea/
 .vscode/
+*.iml
+.DS_Store
+
+# Android build noise (keep android/sources; drop caches)
+android/build/
+android/.gradle/
+android/**/build/
+android/**/.cxx/
+android/.settings/
+android/local.properties
+
+# iOS
+ios/build/
+Pods/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+
+# Logs & secrets (npm tarball must not ship these)
+*.log
+.env
+.env.*
 *.pem
 *.p12
 *.keystore
-.git/
-.gitignore
+*.jks
 
+# Internal docs (optional dev notes — not for registry tarball)
+ARCHITECTURE.md
+*_COMPLETE.md
+*_GUIDE.md
+*_SUMMARY.md
+*_NOTES.md
+*_CHECKLIST.md
+*_COMPARISON.md
+android/*.md
+coverage/

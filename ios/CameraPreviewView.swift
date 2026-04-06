@@ -1,17 +1,4 @@
-/**
- * CameraPreviewView.swift
- *
- * Full-featured iOS camera scanner with complete Android parity:
- *   - Barcode detection via Vision framework (all formats)
- *   - Scan region filtering (configurable rect + visual overlay)
- *   - Pro scanner mode (corner brackets + dim isolation + scan band)
- *   - Standard mode (freeze-frame + success flash animation)
- *   - Multi-frame stability tracking before confirming detection
- *   - Torch control, haptic feedback
- *   - All props match Android/Scanner.tsx API exactly
- *
- * Zero React imports — all RN bridging lives in CameraViewManager.mm.
- */
+// Camera preview, Vision barcodes, scan region / overlays. Bridged from CameraViewManager.mm.
 
 import UIKit
 import AVFoundation
@@ -226,8 +213,13 @@ class CameraPreviewView: UIView {
       }
       self.captureSession.commitConfiguration()
 
-      // Preview layer + connections must be configured before frames run; Vision orientation must match
-      // `previewLayer.connection` used by `layerRectConverted(fromMetadataOutputRect:)`.
+      // Run here (same queue as begin/commit), not after main-thread preview attach — that can overlap
+      // internal begin/commit and crash if startRunning is still queued.
+      if self.autoStart {
+        self.captureSession.startRunning()
+      }
+
+      // Preview layer on main after the session is running — matches Vision / layerRectConverted usage.
       DispatchQueue.main.async { [weak self] in
         guard let self else { return }
         self.videoOutputConnection = output.connection(with: .video)
@@ -245,10 +237,6 @@ class CameraPreviewView: UIView {
           Self.applyPortraitOrientation(to: pc)
         }
         self.updateScanRegionRect()
-
-        self.captureQueue.async {
-          if self.autoStart { self.captureSession.startRunning() }
-        }
       }
     }
   }
