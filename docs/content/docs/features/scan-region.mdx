@@ -1,0 +1,167 @@
+---
+title: Scan Region
+description: Limit barcode detection to a specific area on screen with a customizable viewfinder overlay.
+icon: ScanLine
+---
+
+## What is a scan region?
+
+<DemoVideo src="/videos/scan-region.mp4" caption="Scan region with dimmed overlay outside the frame">
+
+A scan region lets you define a rectangular area on the camera preview. Only barcodes that are fully inside that area will be detected — anything outside gets ignored.
+
+This is useful when your UI has other things on screen and you want to guide the user to a specific spot. Think of it like a viewfinder box, similar to what you'd see in banking apps or parcel delivery apps.
+
+</DemoVideo>
+
+---
+
+## Basic example
+
+```tsx
+import { Scanner } from 'react-native-scanner-pro';
+import { StyleSheet } from 'react-native';
+
+<Scanner
+  style={StyleSheet.absoluteFill}
+  onCodeScanned={(result) => console.log(result.data)}
+  scanRegion={{
+    enabled: true,
+    width: 280,
+    height: 280,
+  }}
+/>
+```
+
+This draws a 280×280 centered viewfinder on the screen. The dim mask covers everything outside of it.
+
+---
+
+## How the filtering works
+
+The library checks whether the entire bounding box of a detected barcode is inside the scan region. If any part of the code sticks outside the region, it won't trigger.
+
+This means the user has to line up the code properly before a scan fires — which actually feels more natural and intentional.
+
+---
+
+## Customizing the appearance
+
+You can control almost everything about how the region looks:
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  onCodeScanned={(result) => console.log(result.data)}
+  scanRegion={{
+    enabled: true,
+    width: 300,
+    height: 200,
+
+    // Move the box up or down from center
+    offsetY: -60,
+
+    // Border
+    borderColor: '#00AAFF',
+    borderWidth: 2,
+    cornerRadius: 16,
+
+    // Corner brackets
+    showCorners: true,
+    cornerLength: 36,
+    cornerWidth: 5,
+
+    // Dim overlay behind the region
+    dimColor: '#000000',
+    dimAlpha: 160,
+
+    // Hint text shown below the box
+    showHint: true,
+    hintText: 'Point camera at the barcode',
+    hintTextColor: '#FFFFFF',
+    hintTextSize: 14,
+  }}
+/>
+```
+
+---
+
+## Moving the region off-center
+
+By default the region is centered. You can shift it using `offsetX` and `offsetY`:
+
+```tsx
+scanRegion={{
+  enabled: true,
+  width: 300,
+  height: 300,
+  offsetX: 0,    // Positive moves right, negative moves left
+  offsetY: -80,  // Negative moves up, positive moves down
+}}
+```
+
+This is handy when you have a result card at the bottom of the screen and want the scanner box to sit in the upper-center area.
+
+---
+
+## All options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | `boolean` | — | Required. Set to `true` to activate the region |
+| `width` | `number` | `300` | Width of the scan area |
+| `height` | `number` | `300` | Height of the scan area |
+| `offsetX` | `number` | `0` | Horizontal offset from center |
+| `offsetY` | `number` | `0` | Vertical offset from center |
+| `cornerRadius` | `number` | `12` | Rounded corners on the cutout |
+| `borderColor` | `string` | `#FFFFFF` | Border color (`#RRGGBB` or `#RRGGBBAA`) |
+| `borderWidth` | `number` | `3` | Border thickness in points/dp |
+| `showBorder` | `boolean` | `true` | Show the border around the cutout |
+| `dimColor` | `string` | `#000000` | Color of the dim mask |
+| `dimAlpha` | `number` | `180` | Opacity of the dim mask (0–255) |
+| `showCorners` | `boolean` | `true` | Show corner bracket decorations |
+| `cornerLength` | `number` | `30` | Length of each corner bracket |
+| `cornerWidth` | `number` | `4` | Line width of corner brackets |
+| `showHint` | `boolean` | `true` | Show hint text below the frame |
+| `hintText` | `string` | `"Align code within frame"` | The hint message |
+| `hintTextColor` | `string` | `#FFFFFF` | Hint text color |
+| `hintTextSize` | `number` | `14` | Hint font size |
+
+---
+
+## Units
+
+- On **Android**, sizes (`width`, `height`, `offsetX`, `offsetY`) are in **dp** (density-independent pixels). The library converts them to actual pixels internally.
+- On **iOS**, sizes are in **points**.
+
+In practice, you can use the same values on both platforms and they'll look roughly the same.
+
+---
+
+## Full example with hint and custom style
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  onCodeScanned={(result) => {
+    console.log('Scanned inside region:', result.data);
+  }}
+  scanRegion={{
+    enabled: true,
+    width: 260,
+    height: 260,
+    cornerRadius: 20,
+    borderColor: '#4CAF50',
+    borderWidth: 2,
+    showCorners: true,
+    cornerLength: 32,
+    cornerWidth: 4,
+    dimColor: '#000000',
+    dimAlpha: 200,
+    showHint: true,
+    hintText: 'Scan a QR code to continue',
+    hintTextColor: '#EEEEEE',
+    hintTextSize: 13,
+  }}
+/>
+```

@@ -1,0 +1,130 @@
+---
+title: Installation
+description: How to install react-native-scanner-pro and set up camera permissions on iOS and Android.
+icon: PackageCheck
+---
+
+## Install the package
+
+```bash
+npm install react-native-scanner-pro
+```
+
+Or with Yarn:
+
+```bash
+yarn add react-native-scanner-pro
+```
+
+**Requirements:**
+- React Native `>= 0.70`
+- React `>= 18`
+- Node `>= 18`
+
+The library uses React Native's autolinking, so you don't need to manually link anything.
+
+---
+
+## iOS setup
+
+After installing, run pod install inside your iOS folder:
+
+```bash
+cd ios && pod install
+```
+
+Then open your `Info.plist` and add the camera usage description. This is required by Apple — the app will crash on startup if you skip this.
+
+```xml
+<key>NSCameraUsageDescription</key>
+<string>We need camera access to scan QR codes and barcodes.</string>
+```
+
+The message you write here is what users see when the permission dialog pops up. Keep it short and honest.
+
+### Xcode build note
+
+If you run into a build error mentioning `{fmt}` or similar issues in the Podfile, add this to the `post_install` block in your `Podfile`:
+
+```ruby
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+    end
+  end
+end
+```
+
+Then run `pod install` again.
+
+---
+
+## Android setup
+
+Open `android/app/src/main/AndroidManifest.xml` and add:
+
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-feature android:name="android.hardware.camera" android:required="false" />
+```
+
+The `android:required="false"` on the `uses-feature` tag means the app can still be installed on devices without a camera (like some tablets). Remove it if your app genuinely can't work without one.
+
+---
+
+## Requesting camera permission at runtime
+
+On Android, you also need to ask the user for camera permission at runtime. Here's a simple way to do it:
+
+```tsx
+import { useEffect } from 'react';
+import { PermissionsAndroid, Platform } from 'react-native';
+
+async function requestCameraPermission() {
+  if (Platform.OS !== 'android') return;
+
+  const granted = await PermissionsAndroid.request(
+    PermissionsAndroid.PERMISSIONS.CAMERA,
+    {
+      title: 'Camera Permission',
+      message: 'This app needs camera access to scan codes.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Deny',
+    }
+  );
+
+  return granted === PermissionsAndroid.RESULTS.GRANTED;
+}
+```
+
+On iOS, the system handles the permission dialog automatically when the camera first starts.
+
+---
+
+## Verify the setup
+
+Once everything is set up, try this minimal example:
+
+```tsx
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Scanner } from 'react-native-scanner-pro';
+
+export default function App() {
+  return (
+    <View style={styles.container}>
+      <Scanner
+        style={StyleSheet.absoluteFill}
+        onCodeScanned={(result) => console.log(result.data)}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+});
+```
+
+If you see a live camera feed and the console logs when you point at a QR code, you're good to go.

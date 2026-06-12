@@ -1,0 +1,38 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+@source "../lib/**/*.tsx";
+@source "../app/**/*.tsx";
+@source "../components/**/*.tsx";
+
+button[data-search-full] {
+  @apply mx-auto! rounded-xl! max-w-lg!;
+}
+
+body {
+  overscroll-behavior-y: none;
+  background-color: var(--color-fd-background);
+}
+
+@media (min-width: 768px) {
+  /* HomeLayout header + DocsLayout grid are siblings in .scanner-docs-shell */
+  .scanner-docs-shell > #nd-home-layout {
+    display: contents;
+  }
+
+  /* Nav bar height (h-14 = 3.5rem). Fumadocs uses this to offset sticky sidebar below nav */
+  .scanner-docs-shell {
+    --fd-banner-height: 3.5rem;
+  }
+
+  /* Nav + docs grid fill the viewport */
+  .scanner-docs-shell > #nd-docs-layout {
+    min-height: calc(100dvh - var(--fd-banner-height));
+  }
+
+  /* Hide mobile-only sidebar header block on desktop */
+  #nd-sidebar > div:has(.scanner-mobile-sidebar-logo) {
+    display: none;
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "react-native-scanner-pro",
+  "short_name": "Scanner Pro",
+  "description": "High-performance QR and barcode scanner for React Native.",
+  "start_url": "/docs",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ]
+}

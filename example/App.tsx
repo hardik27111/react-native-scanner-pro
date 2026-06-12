@@ -5,11 +5,12 @@ import {
   Text,
   StatusBar,
   Switch,
-  Modal,
   TouchableOpacity,
   Animated,
   Dimensions,
   ScrollView,
+  Keyboard,
+  BackHandler,
   PermissionsAndroid,
   Platform,
   FlatList,
@@ -19,6 +20,7 @@ import {Scanner, ScanResult, BoundingBoxConfig, ScanRegionConfig} from 'react-na
 
 const {height: SCREEN_HEIGHT} = Dimensions.get('window');
 const MODAL_HEIGHT = SCREEN_HEIGHT - 100;
+const KEYBOARD_SCROLL_MARGIN = 24;
 
 interface ScanEntry {
   id: string;
@@ -69,6 +71,83 @@ export default function App() {
   const [srHintTextSize, setSrHintTextSize] = useState('14');
 
   const slideAnim = useRef(new Animated.Value(MODAL_HEIGHT)).current;
+  const settingsScrollRef = useRef<ScrollView>(null);
+  const scrollContentRef = useRef<View>(null);
+  const scrollYRef = useRef(0);
+  const pendingFieldRef = useRef<View | null>(null);
+  const keyboardTopRef = useRef(SCREEN_HEIGHT);
+  const scrollTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const [keyboardPadding, setKeyboardPadding] = useState(0);
+
+  const clearScrollTimers = useCallback(() => {
+    scrollTimersRef.current.forEach(clearTimeout);
+    scrollTimersRef.current = [];
+  }, []);
+
+  const scrollFieldIntoView = useCallback((fieldRef: View) => {
+    const statusBarOffset = StatusBar.currentHeight ?? 0;
+    const keyboardTopInWindow = keyboardTopRef.current - statusBarOffset;
+
+    fieldRef.measureInWindow((_fx: number, fieldTop: number, _fw: number, fieldHeight: number) => {
+      const fieldBottom = fieldTop + fieldHeight + KEYBOARD_SCROLL_MARGIN;
+      if (fieldBottom <= keyboardTopInWindow) return;
+
+      const nextY = scrollYRef.current + (fieldBottom - keyboardTopInWindow);
+      settingsScrollRef.current?.scrollTo({y: nextY, animated: true});
+      scrollYRef.current = nextY;
+    });
+  }, []);
+
+  const scheduleScrollIntoView = useCallback(
+    (fieldRef: View | null) => {
+      if (!fieldRef) return;
+      clearScrollTimers();
+      [0, 80, 200].forEach(delay => {
+        const timer = setTimeout(() => scrollFieldIntoView(fieldRef), delay);
+        scrollTimersRef.current.push(timer);
+      });
+    },
+    [clearScrollTimers, scrollFieldIntoView],
+  );
+
+  const handleInputFocus = useCallback(
+    (fieldRef: View) => {
+      if (Platform.OS !== 'android') return;
+      pendingFieldRef.current = fieldRef;
+      if (keyboardTopRef.current < SCREEN_HEIGHT) {
+        scheduleScrollIntoView(fieldRef);
+      }
+    },
+    [scheduleScrollIntoView],
+  );
+
+  useEffect(() => {
+    if (!settingsVisible || Platform.OS !== 'android') return;
+
+    const showSub = Keyboard.addListener('keyboardDidShow', event => {
+      keyboardTopRef.current = event.endCoordinates.screenY;
+      setKeyboardPadding(event.endCoordinates.height);
+      scheduleScrollIntoView(pendingFieldRef.current);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      keyboardTopRef.current = SCREEN_HEIGHT;
+      setKeyboardPadding(0);
+      pendingFieldRef.current = null;
+      clearScrollTimers();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+      clearScrollTimers();
+    };
+  }, [settingsVisible, scheduleScrollIntoView, clearScrollTimers]);
+
+  useEffect(() => {
+    if (keyboardPadding > 0 && pendingFieldRef.current) {
+      scheduleScrollIntoView(pendingFieldRef.current);
+    }
+  }, [keyboardPadding, scheduleScrollIntoView]);
 
   const boundingBoxConfig: BoundingBoxConfig = useMemo(
     () => ({
@@ -150,10 +229,24 @@ export default function App() {
   }, [slideAnim]);
 
   const closeSettings = useCallback(() => {
-    Animated.timing(slideAnim, {toValue: MODAL_HEIGHT, duration: 250, useNativeDriver: true}).start(() =>
-      setSettingsVisible(false),
-    );
-  }, [slideAnim]);
+    Keyboard.dismiss();
+    Animated.timing(slideAnim, {toValue: MODAL_HEIGHT, duration: 250, useNativeDriver: true}).start(() => {
+      setSettingsVisible(false);
+      setKeyboardPadding(0);
+      keyboardTopRef.current = SCREEN_HEIGHT;
+      pendingFieldRef.current = null;
+      clearScrollTimers();
+    });
+  }, [slideAnim, clearScrollTimers]);
+
+  useEffect(() => {
+    if (!settingsVisible || Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeSettings();
+      return true;
+    });
+    return () => sub.remove();
+  }, [settingsVisible, closeSettings]);
 
   const handleCodeScanned = useCallback((result: ScanResult) => {
     setScannedItems(prev => {
@@ -224,21 +317,31 @@ export default function App() {
         </View>
       )}
 
-      {/* Settings Modal */}
-      <Modal visible={settingsVisible} transparent animationType="slide" onRequestClose={closeSettings}>
-        <View style={styles.modalRoot}>
+      {/* Settings sheet — in-tree overlay (Android Modal uses a separate window that ignores softInputMode) */}
+      {settingsVisible && (
+        <View style={styles.overlay}>
           <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={closeSettings} />
           <Animated.View style={[styles.sheet, {transform: [{translateY: slideAnim}]}]}>
             <View style={styles.handle} />
             <Text style={styles.sheetTitle}>Scanner Settings</Text>
             <ScrollView
+              ref={settingsScrollRef}
               style={styles.scroll}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
-              automaticallyAdjustKeyboardInsets
+              automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+              onScroll={event => {
+                scrollYRef.current = event.nativeEvent.contentOffset.y;
+              }}
+              scrollEventThrottle={16}
             >
+            <View
+              ref={scrollContentRef}
+              style={[
+                styles.scrollContent,
+                Platform.OS === 'android' && keyboardPadding > 0 && {paddingBottom: keyboardPadding + KEYBOARD_SCROLL_MARGIN},
+              ]}>
             <Section title="Camera">
               <Toggle label="Torch / Flashlight" value={torch} onToggle={setTorch} />
             </Section>
@@ -260,25 +363,25 @@ export default function App() {
                     Frame size and offsets use the same units as the native overlay (dp on Android, points on iOS).
                     Dim alpha is 0–255.
                   </Text>
-                  <NumberRow label="Width" value={srWidth} onChange={setSrWidth} />
-                  <NumberRow label="Height" value={srHeight} onChange={setSrHeight} />
-                  <NumberRow label="Offset X (from center)" value={srOffsetX} onChange={setSrOffsetX} />
-                  <NumberRow label="Offset Y (from center)" value={srOffsetY} onChange={setSrOffsetY} />
-                  <NumberRow label="Cutout corner radius" value={srCornerRadius} onChange={setSrCornerRadius} />
+                  <NumberRow label="Width" value={srWidth} onChange={setSrWidth} onInputFocus={handleInputFocus} />
+                  <NumberRow label="Height" value={srHeight} onChange={setSrHeight} onInputFocus={handleInputFocus} />
+                  <NumberRow label="Offset X (from center)" value={srOffsetX} onChange={setSrOffsetX} onInputFocus={handleInputFocus} />
+                  <NumberRow label="Offset Y (from center)" value={srOffsetY} onChange={setSrOffsetY} onInputFocus={handleInputFocus} />
+                  <NumberRow label="Cutout corner radius" value={srCornerRadius} onChange={setSrCornerRadius} onInputFocus={handleInputFocus} />
                   <Toggle label="Show border" value={srShowBorder} onToggle={setSrShowBorder} />
-                  <ColorRow label="Border color" value={srBorderColor} onChange={setSrBorderColor} />
-                  <NumberRow label="Border width" value={srBorderWidth} onChange={setSrBorderWidth} />
+                  <ColorRow label="Border color" value={srBorderColor} onChange={setSrBorderColor} onInputFocus={handleInputFocus} />
+                  <NumberRow label="Border width" value={srBorderWidth} onChange={setSrBorderWidth} onInputFocus={handleInputFocus} />
                   <Toggle label="Show corner brackets" value={srShowCorners} onToggle={setSrShowCorners} />
-                  <NumberRow label="Corner bracket length" value={srCornerLength} onChange={setSrCornerLength} />
-                  <NumberRow label="Corner line width" value={srCornerWidth} onChange={setSrCornerWidth} />
-                  <ColorRow label="Dim / mask color" value={srDimColor} onChange={setSrDimColor} />
-                  <NumberRow label="Dim alpha (0–255)" value={srDimAlpha} onChange={setSrDimAlpha} />
+                  <NumberRow label="Corner bracket length" value={srCornerLength} onChange={setSrCornerLength} onInputFocus={handleInputFocus} />
+                  <NumberRow label="Corner line width" value={srCornerWidth} onChange={setSrCornerWidth} onInputFocus={handleInputFocus} />
+                  <ColorRow label="Dim / mask color" value={srDimColor} onChange={setSrDimColor} onInputFocus={handleInputFocus} />
+                  <NumberRow label="Dim alpha (0–255)" value={srDimAlpha} onChange={setSrDimAlpha} onInputFocus={handleInputFocus} />
                   <Toggle label="Show hint text" value={srShowHint} onToggle={setSrShowHint} />
                   {srShowHint && (
                     <>
-                      <HintTextRow label="Hint text" value={srHintText} onChange={setSrHintText} />
-                      <ColorRow label="Hint text color" value={srHintTextColor} onChange={setSrHintTextColor} />
-                      <NumberRow label="Hint text size" value={srHintTextSize} onChange={setSrHintTextSize} />
+                      <HintTextRow label="Hint text" value={srHintText} onChange={setSrHintText} onInputFocus={handleInputFocus} />
+                      <ColorRow label="Hint text color" value={srHintTextColor} onChange={setSrHintTextColor} onInputFocus={handleInputFocus} />
+                      <NumberRow label="Hint text size" value={srHintTextSize} onChange={setSrHintTextSize} onInputFocus={handleInputFocus} />
                     </>
                   )}
                 </>
@@ -290,16 +393,16 @@ export default function App() {
               {bbEnabled && (
                 <>
                   <Toggle label="Show Detected Text" value={bbShowText} onToggle={setBbShowText} />
-                  <ColorRow label="Border Color" value={bbBorderColor} onChange={setBbBorderColor} />
-                  <NumberRow label="Border Width" value={bbBorderWidth} onChange={setBbBorderWidth} />
-                  <NumberRow label="Border Radius (0 = sharp)" value={bbBorderRadius} onChange={setBbBorderRadius} />
+                  <ColorRow label="Border Color" value={bbBorderColor} onChange={setBbBorderColor} onInputFocus={handleInputFocus} />
+                  <NumberRow label="Border Width" value={bbBorderWidth} onChange={setBbBorderWidth} onInputFocus={handleInputFocus} />
+                  <NumberRow label="Border Radius (0 = sharp)" value={bbBorderRadius} onChange={setBbBorderRadius} onInputFocus={handleInputFocus} />
                   {bbShowText && (
                     <>
-                      <ColorRow label="Text Color" value={bbTextColor} onChange={setBbTextColor} />
-                      <ColorRow label="Text Background" value={bbTextBgColor} onChange={setBbTextBgColor} />
+                      <ColorRow label="Text Color" value={bbTextColor} onChange={setBbTextColor} onInputFocus={handleInputFocus} />
+                      <ColorRow label="Text Background" value={bbTextBgColor} onChange={setBbTextBgColor} onInputFocus={handleInputFocus} />
                     </>
                   )}
-                  <ColorRow label="Fill Color (empty = none)" value={bbFillColor} onChange={setBbFillColor} />
+                  <ColorRow label="Fill Color (empty = none)" value={bbFillColor} onChange={setBbFillColor} onInputFocus={handleInputFocus} />
                 </>
               )}
             </Section>
@@ -314,10 +417,11 @@ export default function App() {
                 Fill color uses hex format: #RRGGBB (8-digit alpha).
               </Text>
             </View>
+            </View>
             </ScrollView>
           </Animated.View>
         </View>
-      </Modal>
+      )}
     </View>
   );
 }
@@ -340,9 +444,20 @@ function Toggle({label, value, onToggle}: {label: string; value: boolean; onTogg
   );
 }
 
-function ColorRow({label, value, onChange}: {label: string; value: string; onChange: (v: string) => void}) {
+function ColorRow({
+  label,
+  value,
+  onChange,
+  onInputFocus,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onInputFocus?: (fieldRef: View) => void;
+}) {
+  const rowRef = useRef<View>(null);
   return (
-    <View style={styles.row}>
+    <View ref={rowRef} style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
       <View style={styles.colorInputWrap}>
         <View style={[styles.colorSwatch, {backgroundColor: value || 'transparent'}]} />
@@ -353,15 +468,27 @@ function ColorRow({label, value, onChange}: {label: string; value: string; onCha
           placeholder="#FFFFFF"
           placeholderTextColor="#666"
           autoCapitalize="characters"
+          onFocus={() => rowRef.current && onInputFocus?.(rowRef.current)}
         />
       </View>
     </View>
   );
 }
 
-function NumberRow({label, value, onChange}: {label: string; value: string; onChange: (v: string) => void}) {
+function NumberRow({
+  label,
+  value,
+  onChange,
+  onInputFocus,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onInputFocus?: (fieldRef: View) => void;
+}) {
+  const rowRef = useRef<View>(null);
   return (
-    <View style={styles.row}>
+    <View ref={rowRef} style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
       <TextInput
         style={styles.numInput}
@@ -369,14 +496,26 @@ function NumberRow({label, value, onChange}: {label: string; value: string; onCh
         onChangeText={onChange}
         keyboardType="numeric"
         placeholderTextColor="#666"
+        onFocus={() => rowRef.current && onInputFocus?.(rowRef.current)}
       />
     </View>
   );
 }
 
-function HintTextRow({label, value, onChange}: {label: string; value: string; onChange: (v: string) => void}) {
+function HintTextRow({
+  label,
+  value,
+  onChange,
+  onInputFocus,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onInputFocus?: (fieldRef: View) => void;
+}) {
+  const rowRef = useRef<View>(null);
   return (
-    <View style={styles.hintRow}>
+    <View ref={rowRef} style={styles.hintRow}>
       <Text style={styles.hintRowLabel}>{label}</Text>
       <TextInput
         style={styles.hintInput}
@@ -384,6 +523,7 @@ function HintTextRow({label, value, onChange}: {label: string; value: string; on
         onChangeText={onChange}
         placeholder="Hint shown under the frame"
         placeholderTextColor="#666"
+        onFocus={() => rowRef.current && onInputFocus?.(rowRef.current)}
       />
     </View>
   );
@@ -428,7 +568,12 @@ const styles = StyleSheet.create({
   chipType: {color: '#30d158', fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginBottom: 4},
   chipData: {color: '#fff', fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'},
 
-  modalRoot: {flex: 1, justifyContent: 'flex-end'},
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    zIndex: 100,
+    elevation: 100,
+  },
   backdrop: {...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)'},
   sheet: {height: MODAL_HEIGHT, width: '100%', backgroundColor: '#1c1c1e', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 12},
   handle: {width: 36, height: 5, backgroundColor: '#48484a', borderRadius: 3, alignSelf: 'center', marginBottom: 16},

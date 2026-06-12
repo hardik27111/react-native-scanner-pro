@@ -3,13 +3,22 @@
 [![npm](https://img.shields.io/npm/v/react-native-scanner-pro)](https://www.npmjs.com/package/react-native-scanner-pro)
 [![license](https://img.shields.io/npm/l/react-native-scanner-pro)](./LICENSE)
 
-A React Native camera component for **QR codes and barcodes**. Android uses **CameraX** and **ML Kit**; iOS uses **AVFoundation** and **Vision**. Everything runs on the device—no API keys or cloud step.
-
-You get a full-screen `Scanner`, optional **viewfinder / scan region**, **bounding boxes**, torch, optional haptic + sound, freeze-frame after a read, and a second “pro” overlay style if you want it.
+A React Native camera component for **QR codes and barcodes**. Android uses **CameraX** and **ML Kit**; iOS uses **AVFoundation** and **Vision**. Everything runs on the device — no API keys or cloud step.
 
 **Requirements:** React Native **0.70+**, React **18+**. Native code is autolinked.
 
----
+## Features
+
+- 📷 **Drop-in `Scanner`** — full-screen camera preview with a single component
+- 🔳 **QR & barcodes** — 13+ formats (QR, EAN-13, Code 128, Data Matrix, PDF417, and more)
+- 🎯 **Scan region** — viewfinder frame; codes outside the area are ignored
+- 🟩 **Bounding boxes** — live native overlays around detected codes
+- ⏸️ **Freeze frame** — pause the preview after a stable read, then fire your callback
+- 🔦 **Torch** — toggle the flashlight with one prop
+- 🛡️ **On-device only** — no API keys, no cloud upload
+- 🎚️ **Stable reads** — waits for 3 matching frames before triggering
+- 🔁 **Resume scanning** — `resumeScanning()` when you're ready for the next code
+- 📘 **TypeScript** — typed props, configs, and `ScanResult`
 
 ## Installation
 
@@ -22,6 +31,14 @@ iOS:
 ```bash
 cd ios && pod install
 ```
+
+---
+
+## Documentation
+
+Checkout full documentation page for info about feature of this library 
+https://react-native-scanner-pro.vercel.app.
+
 
 ---
 
@@ -86,7 +103,7 @@ const styles = StyleSheet.create({
 
 ### Resume after freeze-frame
 
-If `enableFreezeFrame` is on (or you pause the flow yourself), call `resumeScanning` on the ref when you’re ready to scan again:
+If `enableFreezeFrame` is on (or you pause the flow yourself), call `resumeScanning` on the ref when you're ready to scan again:
 
 ```tsx
 import { useRef } from 'react';
@@ -105,14 +122,11 @@ ref.current?.resumeScanning();
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| `onCodeScanned` | `(result: ScanResult) => void` | — | Fired when a code is read (payload is unwrapped for you). |
-| `style` | `ViewStyle` | — | Pass `StyleSheet.absoluteFill` for a full-screen camera. |
+| `onCodeScanned` | `(result: ScanResult) => void` | — | Fired when a code is read. |
+| `style` | `ViewStyle` | — | Pass `StyleSheet.absoluteFill` for full-screen. |
 | `autoStart` | `boolean` | `true` | Start the camera when the view mounts. |
 | `torch` | `boolean` | `false` | Flashlight when the device supports it. |
-| `enableHaptic` | `boolean` | `false` | Short vibration on a successful read (where implemented). |
-| `enableSound` | `boolean` | `false` | Beep on a successful read (where implemented). |
 | `enableFreezeFrame` | `boolean` | `false` | Briefly hold the preview after a stable read. |
-| `proScanner` | `boolean` | `false` | Alternate native overlay / framing style. |
 | `boundingBox` | `BoundingBoxConfig` | — | Draw boxes around detections; see below. |
 | `scanRegion` | `ScanRegionConfig` | — | Draw a frame and only accept codes inside it; see below. |
 
@@ -127,13 +141,13 @@ ref.current?.resumeScanning();
 
 ### Colors in JS
 
-Use `#RRGGBB` or `#RRGGBBAA`. On both platforms the **last** pair is alpha (same idea as Android).
+Use `#RRGGBB` or `#RRGGBBAA`. On both platforms the **last** pair is alpha.
 
 ---
 
 ## Scan region (viewfinder)
 
-Pass `scanRegion` when you want a visible frame and to **ignore** codes that aren’t fully inside it. Sizes are **dp** on Android and **points** on iOS.
+Pass `scanRegion` when you want a visible frame and to **ignore** codes that aren't fully inside it. Sizes are **dp** on Android and **points** on iOS.
 
 ```tsx
 <Scanner
@@ -155,6 +169,8 @@ Pass `scanRegion` when you want a visible frame and to **ignore** codes that are
 
 Common fields: `enabled`, `width`, `height`, `offsetX`, `offsetY`, `cornerRadius`, `borderColor`, `borderWidth`, `dimColor`, `dimAlpha`, `showBorder`, `showCorners`, `cornerLength`, `cornerWidth`, `showHint`, `hintText`, `hintTextColor`, `hintTextSize`.
 
+See the full [Scan Region docs](./docs/content/docs/features/scan-region.mdx) for all options.
+
 ---
 
 ## Bounding box
@@ -174,30 +190,26 @@ Common fields: `enabled`, `width`, `height`, `offsetX`, `offsetY`, `cornerRadius
 />
 ```
 
----
-
-## `ScannerView` (optional)
-
-The package also exports **`ScannerView`** for a larger set of camera / overlay options. Most apps only need **`Scanner`**. Types live next to the exports in `src/` if you want full prop lists in the editor.
+See the full [Bounding Box docs](./docs/content/docs/features/bounding-box.mdx) for all options.
 
 ---
 
 ## Troubleshooting
 
 **iOS build errors around `{fmt}` / `consteval` (newer Xcode)**  
-React Native pulls in `{fmt}`; some Xcode / Clang combos choke on it. Fixes usually live in your app **`Podfile`** `post_install` (patch `Pods/fmt/...` or define `FMT_USE_CONSTEVAL`—search the RN issue tracker for your RN version).
+React Native pulls in `{fmt}`; some Xcode / Clang combos choke on it. Fixes usually live in your app **`Podfile`** `post_install` (patch `Pods/fmt/...` or define `FMT_USE_CONSTEVAL` — search the RN issue tracker for your RN version).
 
 ---
 
 ## Try it in the repo
 
-There is an **`example`** app in this repository you can run to play with torch, scan region, bounding box colors, and the rest—handy while you wire your own screen.
+There is an **`example`** app in this repository you can run to play with torch, scan region, bounding box colors, and the rest — handy while you wire your own screen.
 
 ---
 
 ## Donation
 
-If you find this **React Native Toast** library useful, consider supporting the project.
+If you find this library useful, consider supporting the project.
 
 <a href="https://www.buymeacoffee.com/hardikviradiya" target="_blank">
   <img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" height="41" />
@@ -207,9 +219,9 @@ If you find this **React Native Toast** library useful, consider supporting the 
 
 ## Hire
 
-I’m a professional **React & React Native developer** available for freelance and contract work.
+I'm a professional **React & React Native developer** available for freelance and contract work.
 
-Contact me: <a herf='mailto:hardikviradiya19@gmail.com'>hardikviradiya19@gmail.com</a>
+Contact me: <a href="mailto:hardikviradiya19@gmail.com">hardikviradiya19@gmail.com</a>
 
 ---
 

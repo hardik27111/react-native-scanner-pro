@@ -1,0 +1,115 @@
+---
+title: Scanner API Reference
+description: Complete reference for all Scanner props, types, and the ScanResult object.
+icon: FileCode
+---
+
+## Scanner props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `style` | `ViewStyle` | — | Layout style for the camera preview view |
+| `onCodeScanned` | `(result: ScanResult) => void` | — | Callback fired when a stable code is detected |
+| `autoStart` | `boolean` | `true` | Whether to start the camera when the component mounts |
+| `torch` | `boolean` | `false` | Turn on the flashlight |
+| `enableFreezeFrame` | `boolean` | `false` | Pause camera after scan, play animation, then resume |
+| `boundingBox` | [`BoundingBoxConfig`](#boundingboxconfig) | — | Configuration for drawing boxes around detected codes |
+| `scanRegion` | [`ScanRegionConfig`](#scanregionconfig) | — | Configuration for restricting scanning to a defined area |
+
+---
+
+## Ref methods
+
+Attach a ref to `Scanner` to call these methods imperatively:
+
+```tsx
+const scannerRef = useRef(null);
+<Scanner ref={scannerRef} ... />
+```
+
+| Method | Description |
+|--------|-------------|
+| `resumeScanning()` | Resume camera and detection after freeze frame or manual pause |
+
+---
+
+## ScanResult
+
+```typescript
+interface ScanResult {
+  data: string;       // The decoded string value
+  type: string;       // Barcode format, e.g. "QR_CODE"
+  rawBytes?: string;  // Base64 raw bytes (Android only)
+  bounds?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+```
+
+**`type` values:** `QR_CODE`, `EAN_13`, `EAN_8`, `UPC_A`, `UPC_E`, `CODE_128`, `CODE_39`, `CODE_93`, `CODABAR`, `DATA_MATRIX`, `PDF417`, `AZTEC`, `ITF`
+
+---
+
+## ScanRegionConfig
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | `boolean` | — | Required. Must be `true` to activate |
+| `width` | `number` | `300` | Region width in dp/points |
+| `height` | `number` | `300` | Region height in dp/points |
+| `offsetX` | `number` | `0` | Horizontal offset from center |
+| `offsetY` | `number` | `0` | Vertical offset from center |
+| `cornerRadius` | `number` | `12` | Corner radius of the cutout |
+| `borderColor` | `string` | `#FFFFFF` | Border color |
+| `borderWidth` | `number` | `3` | Border thickness |
+| `showBorder` | `boolean` | `true` | Draw the border |
+| `dimColor` | `string` | `#000000` | Dim mask color |
+| `dimAlpha` | `number` | `180` | Dim mask opacity (0–255) |
+| `showCorners` | `boolean` | `true` | Show corner bracket decorations |
+| `cornerLength` | `number` | `30` | Corner bracket arm length |
+| `cornerWidth` | `number` | `4` | Corner bracket line width |
+| `showHint` | `boolean` | `true` | Show hint text below the frame |
+| `hintText` | `string` | `"Align code within frame"` | Hint message |
+| `hintTextColor` | `string` | `#FFFFFF` | Hint text color |
+| `hintTextSize` | `number` | `14` | Hint font size |
+
+---
+
+## BoundingBoxConfig
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | `boolean` | `true` | Draw boxes around detections |
+| `borderColor` | `string` | `#FFFFFF` | Box border color |
+| `borderWidth` | `number` | `4` | Border thickness |
+| `borderRadius` | `number` | `12` | Rounded corner radius |
+| `fillColor` | `string` | — | Optional fill color (supports alpha) |
+| `showText` | `boolean` | `true` | Show decoded value as a text label |
+| `textColor` | `string` | `#000000` | Label text color |
+| `textSize` | `number` | `14` | Label font size |
+| `textBackgroundColor` | `string` | `#FFFFFF` | Label background color |
+
+---
+
+## Color format
+
+All color strings follow these two formats:
+
+- `#RRGGBB` — fully opaque (e.g. `#FF5733`)
+- `#RRGGBBAA` — with transparency (e.g. `#FF573380` = 50% transparent)
+
+The alpha value is the **last two characters**, not the first.
+
+---
+
+## Platform differences
+
+| Feature | iOS | Android |
+|---------|-----|---------|
+| `rawBytes` in ScanResult | Not filled | Base64 string |
+| Default barcode formats | All 13 types | QR code only |
+| `onError` event | Native only (not in Scanner) | Not in Scanner |
+

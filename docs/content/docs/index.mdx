@@ -1,0 +1,63 @@
+---
+title: Introduction
+description: react-native-scanner-pro is a fast, cross-platform QR code and barcode scanner for React Native apps.
+icon: BookOpen
+---
+
+## What is this library?
+
+`react-native-scanner-pro` is a React Native library that lets you add QR code and barcode scanning to your app. It works on both iOS and Android using the native camera APIs on each platform — so you get the best performance possible.
+
+On **Android** it uses [CameraX](https://developer.android.com/training/camerax) and [Google ML Kit](https://developers.google.com/ml-kit) for detection. On **iOS** it uses [AVFoundation](https://developer.apple.com/av-foundation/) for the camera preview and [Apple Vision](https://developer.apple.com/documentation/vision) for detecting barcodes.
+
+---
+
+## What can it do?
+
+Here's a quick look at everything the library supports:
+
+- **QR codes and barcodes** — scans over 13 different barcode types including QR, EAN-13, Code 128, Data Matrix, and more
+- **Scan region** — you can define a specific area on screen where scanning should happen. Codes outside that area get ignored.
+- **Bounding boxes** — draw a live rectangle around detected codes while they're on screen
+- **Freeze frame** — the camera pauses after a successful scan, plays a short animation, then fires your callback. Great UX for checkout-style flows.
+- **Torch / flashlight** — toggle the flashlight with a simple prop
+- **Stability gating** — requires 3 stable frames before firing, so you don't get false positives
+- **Ref-based resume** — call `resumeScanning()` manually whenever you're ready to scan again
+
+---
+
+## Quick example
+
+<DemoVideo src="/videos/fill-qr-scan.mp4" caption="Basic QR scanning in action">
+
+```tsx
+import { Scanner } from 'react-native-scanner-pro';
+import { StyleSheet } from 'react-native';
+
+export default function App() {
+  return (
+    <Scanner
+      style={StyleSheet.absoluteFill}
+      onCodeScanned={(result) => {
+        console.log('Scanned:', result.data);
+        console.log('Type:', result.type);
+      }}
+    />
+  );
+}
+```
+
+That's it. The camera opens, starts scanning, and fires `onCodeScanned` every time it picks up a code.
+
+</DemoVideo>
+
+---
+
+## What's next?
+
+- [Installation](/docs/installation) — add the package and set up permissions
+- [Basic Usage](/docs/features/scanner) — everything about the `Scanner` component
+- [Scan Region](/docs/features/scan-region) — limit scanning to a specific area
+- [Bounding Boxes](/docs/features/bounding-box) — show boxes around detected codes
+- [Freeze Frame](/docs/features/freeze-frame) — pause and animate after a scan
+- [API Reference](/docs/api/scanner-props) — all props, types, and defaults

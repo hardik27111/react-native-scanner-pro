@@ -18,8 +18,11 @@ android/**/.cxx/
 android/.settings/
 android/local.properties
 
-# iOS
+# iOS (never ship local Xcode / CocoaPods output)
 ios/build/
+ios/**/build/
+ios/DerivedData/
+ios/Pods/
 Pods/
 *.xcworkspace/xcuserdata/
 *.xcuserstate

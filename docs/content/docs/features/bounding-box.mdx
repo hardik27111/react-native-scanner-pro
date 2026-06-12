@@ -1,0 +1,130 @@
+---
+title: Bounding Boxes
+description: Draw live rectangles around detected barcodes as the user moves the camera around.
+icon: SquareDashedMousePointer
+---
+
+## What are bounding boxes?
+
+<DemoVideo src="/videos/bounding-box.mp4" caption="Live bounding box tracking a detected code">
+
+When the scanner detects a barcode, it draws a rectangle around it on screen. This gives users a visual confirmation that the scanner is actively tracking a code — even before the final result fires.
+
+It's a small detail that makes the scanning experience feel a lot more polished.
+
+</DemoVideo>
+
+---
+
+## Enabling bounding boxes
+
+Pass a `boundingBox` config to the `Scanner`:
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  onCodeScanned={(result) => console.log(result.data)}
+  boundingBox={{
+    enabled: true,
+  }}
+/>
+```
+
+That's enough to get the default white box around detected codes.
+
+---
+
+## Customizing the style
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  onCodeScanned={(result) => console.log(result.data)}
+  boundingBox={{
+    enabled: true,
+    borderColor: '#00E676',       // Green border
+    borderWidth: 3,
+    borderRadius: 10,             // Rounded corners
+    fillColor: '#00E67620',       // Semi-transparent green fill
+    showText: true,               // Show the decoded text
+    textColor: '#000000',
+    textSize: 13,
+    textBackgroundColor: '#FFFFFF',
+  }}
+/>
+```
+
+---
+
+## Showing the decoded text
+
+You can display the actual scanned value inside or near the bounding box:
+
+```tsx
+boundingBox={{
+  enabled: true,
+  showText: true,
+  textColor: '#000000',
+  textSize: 14,
+  textBackgroundColor: '#FFFFFFCC', // White with slight transparency
+}}
+```
+
+This is useful for debug views or apps where the user should see exactly what was scanned before confirming.
+
+---
+
+## Combining with a scan region
+
+Bounding boxes work naturally with [scan regions](/docs/features/scan-region). The box only appears when the code is inside the region — so if a code is partially visible outside the frame, no box appears. Once the user aligns the code inside the frame, the box shows up.
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  onCodeScanned={(result) => console.log(result.data)}
+  scanRegion={{
+    enabled: true,
+    width: 280,
+    height: 280,
+  }}
+  boundingBox={{
+    enabled: true,
+    borderColor: '#FFFFFF',
+    borderWidth: 2,
+    showText: false,
+  }}
+/>
+```
+
+---
+
+## All options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | `boolean` | `true` | Show bounding boxes |
+| `borderColor` | `string` | `#FFFFFF` | Box border color |
+| `borderWidth` | `number` | `4` | Border thickness in points/dp |
+| `borderRadius` | `number` | `12` | Rounded corner radius |
+| `fillColor` | `string` | — | Optional fill color. Use `#RRGGBBAA` for transparency |
+| `showText` | `boolean` | `true` | Show the decoded value as a label |
+| `textColor` | `string` | `#000000` | Label text color |
+| `textSize` | `number` | `14` | Label font size |
+| `textBackgroundColor` | `string` | `#FFFFFF` | Label background color |
+
+---
+
+## Color format
+
+All color values use hex strings. You can use:
+
+- `#RRGGBB` — fully opaque color, e.g. `#FF0000` for red
+- `#RRGGBBAA` — color with alpha, e.g. `#FF000080` for 50% transparent red
+
+The alpha channel is the **last two characters**, not the first. This is important — if you get the order wrong, the color will look different than expected.
+
+---
+
+## A note on performance
+
+Bounding boxes are drawn as native overlays on top of the camera preview. They don't go through the JavaScript bridge per frame, so they won't slow down your app even during fast movement.

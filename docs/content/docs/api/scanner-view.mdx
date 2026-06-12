@@ -1,0 +1,224 @@
+---
+title: ScannerView (Android Advanced)
+description: Advanced Android-only scanner component with zoom, focus control, HDR, performance tuning, and more.
+---
+
+## Overview
+
+`ScannerView` is an Android-only component that gives you fine-grained control over the camera and scanning pipeline. It's built on top of CameraX and ML Kit, with a C++ layer for frame math and smoothing.
+
+You probably don't need this unless you're building something specialized — like a warehouse inventory app that needs to scan codes from 5 meters away, or an app that needs to handle poor lighting or fast-moving barcodes.
+
+If you're building a regular app, use [`Scanner`](/docs/features/scanner) instead.
+
+**iOS is not supported.** If you render `ScannerView` on iOS, nothing will appear.
+
+---
+
+## Import
+
+```tsx
+import { ScannerView } from 'react-native-scanner-pro';
+```
+
+---
+
+## Basic usage
+
+```tsx
+<ScannerView
+  style={StyleSheet.absoluteFill}
+  onCodeScanned={(result) => console.log(result.data)}
+  barcodeFormats={['QR_CODE', 'CODE_128', 'EAN_13']}
+/>
+```
+
+---
+
+## Ref methods
+
+```tsx
+const ref = useRef(null);
+<ScannerView ref={ref} ... />
+```
+
+| Method | Description |
+|--------|-------------|
+| `resumeScanning()` | Resume after freeze frame |
+| `getMetrics()` | Returns current performance metrics |
+| `focusAt(x, y)` | Focus the camera at a specific screen coordinate |
+
+---
+
+## Camera props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `cameraPosition` | `'front' \| 'back'` | `'back'` | Which camera to use |
+| `resolution` | `'low' \| 'medium' \| 'high' \| 'ultra'` | `'high'` | Camera resolution |
+| `autoFocus` | `boolean` | `true` | Enable autofocus |
+| `focusMode` | `'auto' \| 'continuous' \| 'manual'` | `'continuous'` | Focus mode |
+| `tapToFocus` | `boolean` | `true` | Tap to focus on tap location |
+| `exposure` | `number` | `0` | Exposure compensation (-2 to +2) |
+| `zoom` | `number` | `1` | Zoom level |
+| `minZoom` | `number` | `1` | Minimum zoom |
+| `maxZoom` | `number` | `10` | Maximum zoom |
+| `pinchToZoom` | `boolean` | `true` | Enable pinch-to-zoom gesture |
+| `torch` | `boolean` | `false` | Flashlight |
+
+---
+
+## Detection props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `barcodeFormats` | `BarcodeFormat[]` | `['QR_CODE']` | Which barcode types to detect |
+| `scanRegion` | `ScanRegion` | — | Restrict detection to an area |
+| `enableStabilization` | `boolean` | `true` | Require multiple consistent frames before firing |
+| `stabilizationFrames` | `number` | `3` | Number of consistent frames required |
+| `stabilizationThreshold` | `number` | `0.8` | Similarity threshold (0–1) |
+
+**`BarcodeFormat` values:** `QR_CODE`, `CODE_128`, `CODE_39`, `CODE_93`, `CODABAR`, `DATA_MATRIX`, `EAN_13`, `EAN_8`, `ITF`, `UPC_A`, `UPC_E`, `PDF417`, `AZTEC`
+
+---
+
+## Performance props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `targetFps` | `number` | `30` | Target frames per second for analysis |
+| `enableFrameGating` | `boolean` | `false` | Skip frames to reduce CPU usage |
+| `frameGateInterval` | `number` | `2` | Analyze every Nth frame when gating is on |
+| `enableSmoothing` | `boolean` | `false` | Smooth bounding box movement |
+| `smoothingAlpha` | `number` | `0.5` | Smoothing factor (0 = very smooth, 1 = no smoothing) |
+| `enableMetrics` | `boolean` | `false` | Collect performance data |
+| `mode` | `'default' \| 'performance' \| 'quality' \| 'battery'` | `'default'` | Overall performance preset |
+
+### Performance presets
+
+Use the `performanceModes` helper or set `mode` directly:
+
+```tsx
+import { performanceModes } from 'react-native-scanner-pro';
+
+<ScannerView
+  {...performanceModes.performance}
+  onCodeScanned={...}
+/>
+```
+
+| Mode | Description |
+|------|-------------|
+| `default` | Balanced settings |
+| `performance` | Higher FPS, more CPU |
+| `quality` | Better detection accuracy |
+| `battery` | Lower FPS, frame gating on |
+
+---
+
+## Overlay props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `showOverlay` | `boolean` | `true` | Show any overlay |
+| `overlayMode` | `'none' \| 'standard' \| 'professional' \| 'minimal'` | `'standard'` | Overlay style |
+| `overlayColor` | `string` | `#000000` | Overlay background color |
+| `overlayOpacity` | `number` | `0.5` | Overlay background opacity (0–1) |
+
+---
+
+## Freeze frame props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `enableFreezeFrame` | `boolean` | `false` | Pause camera after scan |
+| `freezeFrameDuration` | `number` | `600` | How long to stay frozen (ms) |
+| `autoResume` | `boolean` | `true` | Automatically resume after freeze |
+| `autoResumeDuration` | `number` | `1500` | Delay before auto-resume (ms) |
+
+---
+
+## Advanced camera props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `enableHdr` | `boolean` | `false` | Enable HDR capture (helps in mixed lighting) |
+| `enableLowLight` | `boolean` | `false` | Enable low-light enhancement |
+| `videoStabilization` | `boolean` | `false` | Enable video stabilization |
+
+---
+
+## Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `onCodeScanned` | `ScanResult` | Fired when a stable code is detected |
+| `onCameraReady` | `CameraReadyEvent` | Camera is initialized and ready |
+| `onError` | `ErrorEvent` | An error occurred |
+| `onMetrics` | `CameraMetrics` | Performance data (requires `enableMetrics: true`) |
+
+---
+
+## `defaultScanRegion` helper
+
+The library exports a `defaultScanRegion` constant that gives you a sensible centered region config to start from:
+
+```tsx
+import { ScannerView, defaultScanRegion } from 'react-native-scanner-pro';
+
+<ScannerView
+  style={StyleSheet.absoluteFill}
+  scanRegion={defaultScanRegion}
+  onCodeScanned={(result) => console.log(result.data)}
+/>
+```
+
+You can spread it and override specific values:
+
+```tsx
+scanRegion={{
+  ...defaultScanRegion,
+  width: 320,
+  height: 200,
+}}
+```
+
+---
+
+## Full example
+
+```tsx
+import React, { useRef } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { ScannerView } from 'react-native-scanner-pro';
+
+export default function AdvancedScanner() {
+  const ref = useRef(null);
+
+  return (
+    <View style={{ flex: 1 }}>
+      <ScannerView
+        ref={ref}
+        style={StyleSheet.absoluteFill}
+        cameraPosition="back"
+        resolution="high"
+        barcodeFormats={['QR_CODE', 'CODE_128', 'EAN_13']}
+        enableStabilization={true}
+        stabilizationFrames={3}
+        mode="quality"
+        enableFreezeFrame={true}
+        freezeFrameDuration={500}
+        autoResume={true}
+        autoResumeDuration={2000}
+        overlayMode="professional"
+        onCodeScanned={(result) => {
+          console.log('Code:', result.data, 'Type:', result.type);
+        }}
+        onError={(e) => {
+          console.error('Scanner error:', e.nativeEvent);
+        }}
+      />
+    </View>
+  );
+}
+```

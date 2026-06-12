@@ -1,0 +1,157 @@
+---
+title: Camera Permissions
+description: How to set up and request camera permissions on iOS and Android.
+icon: ShieldCheck
+---
+
+## Why permissions matter
+
+Camera access is sensitive, and both platforms require you to explicitly ask the user before you can use it. If you skip this step, the app will either crash or show a black screen instead of the camera.
+
+---
+
+## iOS
+
+On iOS, you only need to add a key to `Info.plist`. The system handles the permission dialog automatically.
+
+Open `ios/YourApp/Info.plist` and add:
+
+```xml
+<key>NSCameraUsageDescription</key>
+<string>We need camera access to scan QR codes and barcodes.</string>
+```
+
+The string you write here is shown to the user when the permission dialog appears. Write something clear and honest. Something like "We use the camera to scan products" works well — avoid vague messages like "For app functionality" because Apple sometimes rejects apps for that.
+
+---
+
+## Android
+
+Android requires two things: manifest permission and a runtime request.
+
+### 1. Manifest
+
+Open `android/app/src/main/AndroidManifest.xml` and add these inside the `<manifest>` tag:
+
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-feature
+  android:name="android.hardware.camera"
+  android:required="false" />
+```
+
+Set `android:required="false"` if your app can still function (partially) on devices without a camera. If scanning is the whole point of your app, you can set it to `true`.
+
+### 2. Runtime request
+
+Android 6.0 and above require you to ask for permission at runtime. Here's a reusable hook:
+
+```tsx
+import { useState, useEffect } from 'react';
+import { PermissionsAndroid, Platform } from 'react-native';
+
+export function useCameraPermission() {
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      setHasPermission(true);
+      return;
+    }
+
+    async function request() {
+      const result = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+        {
+          title: 'Camera Access',
+          message: 'This app needs your camera to scan barcodes.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Deny',
+        }
+      );
+      setHasPermission(result === PermissionsAndroid.RESULTS.GRANTED);
+    }
+
+    request();
+  }, []);
+
+  return hasPermission;
+}
+```
+
+Use it in your screen component:
+
+```tsx
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Scanner } from 'react-native-scanner-pro';
+import { useCameraPermission } from './useCameraPermission';
+
+export default function ScannerScreen() {
+  const hasPermission = useCameraPermission();
+
+  if (hasPermission === null) {
+    return (
+      <View style={styles.center}>
+        <Text>Requesting permission...</Text>
+      </View>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <View style={styles.center}>
+        <Text>Camera permission was denied.</Text>
+        <Text>Please enable it in your device settings.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Scanner
+        style={StyleSheet.absoluteFill}
+        onCodeScanned={(result) => console.log(result.data)}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+});
+```
+
+---
+
+## What happens if permission is denied?
+
+- On **iOS**: the camera view will be black. The system will not ask again — the user has to go to Settings > Your App > Camera to re-enable it.
+- On **Android**: `PermissionsAndroid.request()` returns `'denied'`. If the user has tapped "Deny" twice, it returns `'never_ask_again'` and you'll need to direct them to the system settings manually.
+
+---
+
+## Using a third-party permissions library
+
+If you're already using [react-native-permissions](https://github.com/zoontek/react-native-permissions) in your project, you can use that instead:
+
+```tsx
+import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+import { Platform } from 'react-native';
+
+async function getCameraPermission() {
+  const permission = Platform.select({
+    ios: PERMISSIONS.IOS.CAMERA,
+    android: PERMISSIONS.ANDROID.CAMERA,
+  });
+
+  const status = await check(permission);
+
+  if (status === RESULTS.GRANTED) return true;
+
+  const result = await request(permission);
+  return result === RESULTS.GRANTED;
+}
+```
+
+Both approaches work fine — use whichever fits your project.

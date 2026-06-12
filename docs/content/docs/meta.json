@@ -1,0 +1,17 @@
+{
+  "title": "react-native-scanner-pro",
+  "pages": [
+    "index",
+    "installation",
+    "---Features---",
+    "features/scanner",
+    "features/scan-region",
+    "features/bounding-box",
+    "features/freeze-frame",
+    "---Guides---",
+    "guides/permissions",
+    "guides/common-patterns",
+    "---API Reference---",
+    "api/scanner-props"
+  ]
+}

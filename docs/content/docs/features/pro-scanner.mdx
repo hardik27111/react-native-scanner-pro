@@ -1,0 +1,90 @@
+---
+title: Pro Scanner Overlay
+description: A polished animated overlay with corner brackets and a scanning band. Gives your scanner a professional look.
+---
+
+## What is the pro scanner overlay?
+
+When you turn on `proScanner`, the camera preview gets a custom overlay drawn on top of it. This includes:
+
+- **Animated corner brackets** that focus in when a code is detected
+- **A scanning band** that sweeps across the frame while scanning is active
+- **A dim background** to isolate the scanning area visually
+
+It's the kind of UX you'd see in delivery, inventory, or POS apps where the scanning experience needs to feel intentional and trustworthy.
+
+---
+
+## Enabling it
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  proScanner={true}
+  onCodeScanned={(result) => console.log(result.data)}
+/>
+```
+
+---
+
+## Pro scanner + freeze frame
+
+The overlay really shines when combined with freeze frame. When the scanner detects a stable code, the corner brackets animate inward, the frame dims, and the scan line completes — then the callback fires.
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  proScanner={true}
+  enableFreezeFrame={true}
+  onCodeScanned={(result) => {
+    console.log('Scanned:', result.data);
+  }}
+/>
+```
+
+This combination gives you a scanner that feels like a real product rather than a prototype.
+
+---
+
+## How it looks
+
+The overlay has two states:
+
+**Scanning (idle):** A scanning band slowly moves up and down inside the frame. Corner brackets sit at the corners.
+
+**Detected (with freeze frame):** When a code is found, the corner brackets animate toward the center of the detected code, the scanning band freezes, and a short confirmation animation plays before the callback fires.
+
+---
+
+## Combining with scan region
+
+`proScanner` and `scanRegion` work well together. The scan region defines the area where codes are valid, and the pro overlay provides visual feedback within that area:
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  proScanner={true}
+  enableFreezeFrame={true}
+  scanRegion={{
+    enabled: true,
+    width: 300,
+    height: 300,
+    showHint: true,
+    hintText: 'Scan a code to continue',
+  }}
+  onCodeScanned={(result) => console.log(result.data)}
+/>
+```
+
+---
+
+## Use cases
+
+The pro scanner overlay is a good fit for:
+
+- **Checkout and POS** — scanning products at a counter
+- **Package delivery** — scanning barcodes on parcels
+- **Ticketing** — validating event or transit tickets
+- **Inventory** — logging items in a warehouse
+
+If you're building something more casual (like scanning a QR code to open a URL), the default scanner without any overlay is fine.

@@ -1,0 +1,189 @@
+---
+title: Scanner Component
+description: The main cross-platform component for scanning QR codes and barcodes on both iOS and Android.
+icon: Camera
+---
+
+## Overview
+
+`Scanner` is the main component you'll use most of the time. It works on both iOS and Android, handles the camera preview, runs barcode detection in the background, and fires a callback when a code is found.
+
+Import it like this:
+
+```tsx
+import { Scanner } from 'react-native-scanner-pro';
+```
+
+---
+
+## Basic usage
+
+The simplest way to use the scanner is to fill the screen with it and handle the result:
+
+```tsx
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
+import { Scanner } from 'react-native-scanner-pro';
+
+export default function ScannerScreen() {
+  function handleScan(result) {
+    console.log('Code:', result.data);
+    console.log('Type:', result.type);
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Scanner
+        style={StyleSheet.absoluteFill}
+        onCodeScanned={handleScan}
+      />
+    </View>
+  );
+}
+```
+
+The `onCodeScanned` callback fires when the scanner detects a stable code — meaning it saw the same code in 3 consecutive camera frames. This prevents accidental duplicate triggers.
+
+---
+
+## The scan result
+
+Your `onCodeScanned` callback receives a `ScanResult` object:
+
+```typescript
+interface ScanResult {
+  data: string;       // The decoded text (URL, number, etc.)
+  type: string;       // Barcode format, e.g. "QR_CODE", "EAN_13"
+  rawBytes?: string;  // Base64 encoded raw bytes (Android only)
+  bounds?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+```
+
+`data` is the most important one — it's the string value of whatever was scanned. The `type` tells you what kind of barcode it was, which can be useful if your app scans multiple barcode formats.
+
+`rawBytes` is only filled in on Android. `bounds` gives you the position of the code on screen.
+
+---
+
+## Supported barcode types
+
+The scanner can detect:
+
+| Format | Description |
+|--------|-------------|
+| `QR_CODE` | Standard QR code |
+| `EAN_13` | Grocery/retail barcode |
+| `EAN_8` | Shorter retail barcode |
+| `UPC_A` | North American retail barcode |
+| `UPC_E` | Compressed UPC barcode |
+| `CODE_128` | High-density linear barcode |
+| `CODE_39` | Alphanumeric barcode |
+| `CODE_93` | Compact Code 39 |
+| `CODABAR` | Numeric barcode used in libraries |
+| `DATA_MATRIX` | 2D code, similar to QR |
+| `PDF417` | 2D barcode on IDs and shipping labels |
+| `AZTEC` | 2D code used for transit tickets |
+| `ITF` | Interleaved 2-of-5 barcodes |
+
+**Note:** On Android, the `Scanner` component only detects QR codes by default.
+
+---
+
+## Resuming after a scan
+
+By default, `Scanner` keeps scanning after each result. If you want to pause it after one scan and resume manually, use a ref:
+
+```tsx
+import React, { useRef } from 'react';
+import { StyleSheet, View, Button } from 'react-native';
+import { Scanner } from 'react-native-scanner-pro';
+
+export default function ScanOnceScreen() {
+  const scannerRef = useRef(null);
+  const [scanned, setScanned] = React.useState(false);
+
+  function handleScan(result) {
+    setScanned(true);
+    console.log('Got:', result.data);
+    // scannerRef.current?.resumeScanning() — call this when ready
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Scanner
+        ref={scannerRef}
+        style={StyleSheet.absoluteFill}
+        onCodeScanned={handleScan}
+      />
+      {scanned && (
+        <Button
+          title="Scan another"
+          onPress={() => {
+            setScanned(false);
+            scannerRef.current?.resumeScanning();
+          }}
+        />
+      )}
+    </View>
+  );
+}
+```
+
+`resumeScanning()` is mainly meant for use with [Freeze Frame](/docs/features/freeze-frame), but you can also call it any time you want the scanner to start detecting codes again.
+
+---
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `style` | `ViewStyle` | — | The style for the camera view |
+| `onCodeScanned` | `(result: ScanResult) => void` | — | Called when a code is detected |
+| `autoStart` | `boolean` | `true` | Start the camera when the component mounts |
+| `torch` | `boolean` | `false` | Turn on the flashlight |
+| `enableFreezeFrame` | `boolean` | `false` | Pause camera after scan and play animation |
+| `boundingBox` | `BoundingBoxConfig` | — | Draw boxes around detected codes |
+| `scanRegion` | `ScanRegionConfig` | — | Limit scanning to a defined area |
+
+---
+
+## Using the torch
+
+Toggle the flashlight with the `torch` prop:
+
+```tsx
+const [torchOn, setTorchOn] = React.useState(false);
+
+<Scanner
+  style={StyleSheet.absoluteFill}
+  torch={torchOn}
+  onCodeScanned={handleScan}
+/>
+
+<Button title="Toggle torch" onPress={() => setTorchOn(v => !v)} />
+```
+
+---
+
+## autoStart
+
+If you want the camera to stay off until you're ready, set `autoStart={false}`. You can then use the ref to resume:
+
+```tsx
+<Scanner
+  ref={scannerRef}
+  autoStart={false}
+  style={StyleSheet.absoluteFill}
+  onCodeScanned={handleScan}
+/>
+
+// Start later
+scannerRef.current?.resumeScanning();
+```
+
+This is useful when you have a permission gate or intro screen before the scanner appears.

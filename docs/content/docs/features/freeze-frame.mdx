@@ -1,0 +1,111 @@
+---
+title: Freeze Frame
+description: Pause the camera after a successful scan, play a short animation, then resume. Makes scanning feel deliberate and smooth.
+icon: CirclePause
+---
+
+## What is freeze frame?
+
+When `enableFreezeFrame` is on, the scanner doesn't just fire the callback and keep going. Instead, it:
+
+1. Detects a stable code (3 consistent frames)
+2. Freezes the camera preview
+3. Plays a short animation (a flash or scanning band, depending on whether `proScanner` is also on)
+4. Fires `onCodeScanned` with the result
+5. Auto-resumes scanning after about 500–800ms
+
+This makes the scan feel intentional rather than just silently triggering. Users get a clear visual confirmation that something was scanned.
+
+---
+
+## Enabling it
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  enableFreezeFrame={true}
+  onCodeScanned={(result) => {
+    console.log('Scanned:', result.data);
+  }}
+/>
+```
+
+---
+
+## Resuming manually with a ref
+
+If you want to stay paused after the scan (for example, to show a confirmation screen), you can call `resumeScanning()` yourself:
+
+```tsx
+import React, { useRef, useState } from 'react';
+import { View, Text, Button, StyleSheet } from 'react-native';
+import { Scanner } from 'react-native-scanner-pro';
+
+export default function ScanScreen() {
+  const scannerRef = useRef(null);
+  const [lastScan, setLastScan] = useState(null);
+
+  function handleScan(result) {
+    setLastScan(result.data);
+    // The camera is currently frozen here
+    // Call resumeScanning() whenever you're ready
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Scanner
+        ref={scannerRef}
+        style={StyleSheet.absoluteFill}
+        enableFreezeFrame={true}
+        onCodeScanned={handleScan}
+      />
+
+      {lastScan && (
+        <View style={styles.resultCard}>
+          <Text style={styles.resultText}>{lastScan}</Text>
+          <Button
+            title="Scan another"
+            onPress={() => {
+              setLastScan(null);
+              scannerRef.current?.resumeScanning();
+            }}
+          />
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  resultCard: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  resultText: {
+    fontSize: 16,
+    marginBottom: 12,
+  },
+});
+```
+
+---
+
+## How stability detection works
+
+Both on iOS and Android, the scanner requires 3 consecutive camera frames to contain the same code before it considers a scan "stable". Only then does the freeze frame trigger and the callback fire.
+
+This is by design. Without stability gating, a camera that picks up a code for even one frame could trigger the callback — which leads to inconsistent behavior when the camera is moving fast or lighting is poor.
+
+---
+
+## Tips
+
+- Freeze frame works best in flows where the user scans one code at a time (checkout, ticket validation, package scanning)
+- If you're building a bulk scan flow (scan many codes quickly), don't use freeze frame — let the scanner run continuously and debounce the results in JavaScript instead
+- The freeze duration is about 500–800ms. It's intentionally short so the experience stays snappy.
