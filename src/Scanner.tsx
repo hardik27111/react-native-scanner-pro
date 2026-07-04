@@ -6,7 +6,18 @@ import {
   Platform,
   type ViewStyle,
 } from 'react-native';
-import type { ScanResult, ScanRegionConfig, BoundingBoxConfig, CameraViewProps } from './types';
+import type {
+  ScanResult,
+  ScanRegionConfig,
+  BoundingBoxConfig,
+  CameraViewProps,
+  DetectionType,
+  CameraPosition,
+  FaceDetectionConfig,
+  FaceResult,
+  FaceLandmarkPoint,
+  FacesDetectedEvent,
+} from './types';
 
 const NativeCameraView = requireNativeComponent<CameraViewProps>('CameraView');
 
@@ -21,6 +32,14 @@ interface ScannerProps {
   enableSound?: boolean;
   enableFreezeFrame?: boolean;
   boundingBox?: BoundingBoxConfig;
+  /** What to detect. Defaults to `'barcode'` (existing behavior). */
+  detectionType?: DetectionType;
+  /** Which camera to use. Defaults to `'back'`. */
+  cameraPosition?: CameraPosition;
+  /** Face box + landmark styling, used when `detectionType="face"`. */
+  faceDetection?: FaceDetectionConfig;
+  /** Fires with detected faces (view coordinates) when `detectionType="face"`. */
+  onFacesDetected?: (event: FacesDetectedEvent) => void;
 }
 
 export const Scanner = React.forwardRef<any, ScannerProps>(
@@ -36,6 +55,10 @@ export const Scanner = React.forwardRef<any, ScannerProps>(
       enableSound = false,
       enableFreezeFrame = false,
       boundingBox,
+      detectionType = 'barcode',
+      cameraPosition = 'back',
+      faceDetection,
+      onFacesDetected,
     },
     ref
   ) => {
@@ -67,6 +90,13 @@ export const Scanner = React.forwardRef<any, ScannerProps>(
       [onCodeScanned]
     );
 
+    const handleFacesDetected = useCallback(
+      (event: { nativeEvent: FacesDetectedEvent }) => {
+        onFacesDetected?.(event.nativeEvent);
+      },
+      [onFacesDetected]
+    );
+
     return (
       <NativeCameraView
         ref={nativeRef}
@@ -79,7 +109,11 @@ export const Scanner = React.forwardRef<any, ScannerProps>(
         enableSound={enableSound}
         enableFreezeFrame={enableFreezeFrame}
         boundingBox={boundingBox}
+        detectionType={detectionType}
+        cameraPosition={cameraPosition}
+        faceDetection={faceDetection}
         onCodeScanned={handleCodeScanned}
+        onFacesDetected={handleFacesDetected}
       />
     );
   }
@@ -87,4 +121,14 @@ export const Scanner = React.forwardRef<any, ScannerProps>(
 
 Scanner.displayName = 'Scanner';
 
-export type { ScanResult, ScanRegionConfig, BoundingBoxConfig };
+export type {
+  ScanResult,
+  ScanRegionConfig,
+  BoundingBoxConfig,
+  DetectionType,
+  CameraPosition,
+  FaceDetectionConfig,
+  FaceResult,
+  FaceLandmarkPoint,
+  FacesDetectedEvent,
+};

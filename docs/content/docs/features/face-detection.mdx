@@ -1,0 +1,179 @@
+---
+title: Face Detection
+description: Switch the scanner to on-device face detection with live bounding boxes and landmark overlays on iOS and Android.
+icon: ScanFace
+---
+
+## Overview
+
+`react-native-scanner-pro` supports **on-device face detection** in addition to barcode scanning. Use the same `<Scanner>` component — switch modes with a single prop.
+
+| Platform | Native API |
+|----------|------------|
+| **Android** | [Google ML Kit Face Detection](https://developers.google.com/ml-kit/vision/face-detection) |
+| **iOS** | [Apple Vision](https://developer.apple.com/documentation/vision/vndetectfacelandmarksrequest) (`VNDetectFaceLandmarksRequest`) |
+
+Everything runs on the device. No API keys, no cloud upload.
+
+---
+
+## Switching detection mode
+
+By default the scanner detects **barcodes** (`detectionType="barcode"`). Set `detectionType="face"` to enable face detection:
+
+```tsx
+import { Scanner } from 'react-native-scanner-pro';
+import { StyleSheet } from 'react-native';
+
+export default function FaceScreen() {
+  return (
+    <Scanner
+      style={StyleSheet.absoluteFill}
+      detectionType="face"
+      cameraPosition="front"
+      onFacesDetected={(event) => {
+        console.log(`${event.count} face(s) detected`);
+      }}
+    />
+  );
+}
+```
+
+Face detection usually uses the **front camera**. Pass `cameraPosition="front"` (defaults to `"back"` for barcode mode).
+
+---
+
+## Face overlay
+
+Pass a `faceDetection` config to style the on-screen overlay — a rounded bounding box plus landmark/contour dots (similar to AR-style face tracking UIs):
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  detectionType="face"
+  cameraPosition="front"
+  faceDetection={{
+    enabled: true,
+    boxColor: '#2BE2C2',
+    boxWidth: 2,
+    boxRadius: 12,
+    showLandmarks: true,   // eyes, nose, mouth dots
+    showContours: true,    // face outline / feature contour dots
+    landmarkColor: '#2BE2C2',
+    landmarkRadius: 3,
+  }}
+  onFacesDetected={(event) => console.log(event.faces)}
+/>
+```
+
+---
+
+## onFacesDetected callback
+
+Unlike barcode scanning (which waits for 3 stable frames before firing `onCodeScanned`), face detection fires **`onFacesDetected` every frame** with all visible faces:
+
+```typescript
+interface FacesDetectedEvent {
+  faces: FaceResult[];
+  count: number;
+}
+
+interface FaceResult {
+  bounds: { x: number; y: number; width: number; height: number };
+  rollAngle?: number;   // head tilt (degrees)
+  yawAngle?: number;    // left / right turn (degrees)
+  pitchAngle?: number;  // up / down (degrees, iOS 15+)
+  trackingId?: number;  // stable id across frames (when tracking is available)
+}
+```
+
+All coordinates are in **view space** (screen pixels relative to the camera preview), same as barcode `bounds`.
+
+```tsx
+<Scanner
+  detectionType="face"
+  cameraPosition="front"
+  onFacesDetected={({ faces, count }) => {
+    faces.forEach((face) => {
+      console.log('Box:', face.bounds);
+      console.log('Yaw:', face.yawAngle);
+    });
+  }}
+/>
+```
+
+---
+
+## All faceDetection options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | `boolean` | `true` | Draw face overlay graphics |
+| `boxColor` | `string` | `#2BE2C2` | Face bounding box border color |
+| `boxWidth` | `number` | `2` | Box border thickness (dp / points) |
+| `boxRadius` | `number` | `12` | Rounded corner radius |
+| `fillColor` | `string` | — | Optional translucent fill inside the box |
+| `showLandmarks` | `boolean` | `true` | Draw key landmark dots (eyes, nose, mouth) |
+| `showContours` | `boolean` | `true` | Draw face outline / feature contour dots |
+| `landmarkColor` | `string` | `#2BE2C2` | Color of landmark and contour dots |
+| `landmarkRadius` | `number` | `3` | Radius of each dot |
+| `performanceMode` | `'fast' \| 'accurate'` | `'fast'` | Detection speed vs. accuracy (Android ML Kit) |
+
+Colors use the same `#RRGGBB` or `#RRGGBBAA` format as [bounding boxes](/docs/features/bounding-box).
+
+---
+
+## Barcode vs face mode
+
+| | Barcode (default) | Face |
+|---|---|---|
+| `detectionType` | `'barcode'` | `'face'` |
+| Primary callback | `onCodeScanned` | `onFacesDetected` |
+| Overlay config | `boundingBox` | `faceDetection` |
+| Typical camera | Back | Front |
+| Callback timing | Stable read (3 frames) | Every frame |
+| Scan region | Supported | Not applied |
+
+Existing barcode props (`boundingBox`, `scanRegion`, `enableFreezeFrame`, etc.) are unchanged when `detectionType="barcode"`.
+
+---
+
+## Cross-platform notes
+
+Only APIs available on **both** iOS and Android are exposed in the public API.
+
+**Landmark visualization** — both platforms draw dots for eyes, nose, mouth, and face outline. The exact point count and layout differ slightly between ML Kit and Vision, so the overlay may look a little different per platform while covering the same facial features.
+
+**Head angles** — `rollAngle`, `yawAngle`, and `pitchAngle` are returned in degrees. `pitchAngle` requires **iOS 15+**; it may be omitted on older iOS versions.
+
+**Tracking ID** — `trackingId` is provided when the native detector supports face tracking (Android with contours disabled). When contour mode is on, tracking is disabled on Android because ML Kit does not support both simultaneously.
+
+**Performance** — overlays are drawn natively on top of the camera preview and do not cross the JS bridge every frame for drawing. Only the `onFacesDetected` callback sends data to JavaScript.
+
+---
+
+## Switching modes at runtime
+
+You can toggle between barcode and face detection without remounting the component:
+
+```tsx
+const [mode, setMode] = useState<'barcode' | 'face'>('barcode');
+
+<Scanner
+  style={StyleSheet.absoluteFill}
+  detectionType={mode}
+  cameraPosition={mode === 'face' ? 'front' : 'back'}
+  boundingBox={{ enabled: true }}
+  faceDetection={{ enabled: true }}
+  onCodeScanned={handleCodeScanned}
+  onFacesDetected={handleFacesDetected}
+/>
+```
+
+The native layer swaps the vision processor and rebinds the camera when `detectionType` or `cameraPosition` changes.
+
+---
+
+## Future detection types
+
+`detectionType` is designed as an extensible switch. `'barcode'` and `'face'` are available today; additional detection types (text, objects, etc.) can be added in future releases without breaking existing integrations.

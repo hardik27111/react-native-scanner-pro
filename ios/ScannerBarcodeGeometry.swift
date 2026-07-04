@@ -62,4 +62,43 @@ enum ScannerBarcodeGeometry {
       height: pixelRect.height * scale
     ).standardized
   }
+
+  /// Converts a Vision-normalized point (origin bottom-left) to view coordinates,
+  /// using the same `resizeAspectFill` math as `viewRect(fromNormalized:)`.
+  static func viewPoint(
+    fromNormalized norm: CGPoint,
+    previewLayer: AVCaptureVideoPreviewLayer?,
+    bufferWidth: Int,
+    bufferHeight: Int,
+    devicePosition: AVCaptureDevice.Position
+  ) -> CGPoint? {
+    guard let layer = previewLayer,
+          bufferWidth > 0, bufferHeight > 0 else { return nil }
+
+    let orientation = cgImageOrientation(forDevicePosition: devicePosition)
+    let (orientedW, orientedH) = orientedImageSize(
+      width: bufferWidth,
+      height: bufferHeight,
+      orientation: orientation
+    )
+
+    let iw = max(1, Int(orientedW.rounded()))
+    let ih = max(1, Int(orientedH.rounded()))
+
+    let pixel = VNImagePointForNormalizedPoint(norm, iw, ih)
+    let flippedY = orientedH - pixel.y
+
+    let viewW = layer.bounds.width
+    let viewH = layer.bounds.height
+    guard viewW > 0, viewH > 0 else { return nil }
+
+    let scale = max(viewW / orientedW, viewH / orientedH)
+    let offsetX = (viewW - orientedW * scale) / 2
+    let offsetY = (viewH - orientedH * scale) / 2
+
+    return CGPoint(
+      x: pixel.x * scale + offsetX,
+      y: flippedY * scale + offsetY
+    )
+  }
 }

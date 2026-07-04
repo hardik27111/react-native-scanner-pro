@@ -63,6 +63,7 @@
     "ios/ProScannerOverlayView.swift",
     "ios/ScannerBarcodeGeometry.swift",
     "ios/ScannerBoundingBox.swift",
+    "ios/ScannerFaceOverlay.swift",
     "ios/ScannerHexColor.swift",
     "ios/ScannerScanRegion.swift",
     "ios/VNBarcodeSymbology+ScannerPro.swift",

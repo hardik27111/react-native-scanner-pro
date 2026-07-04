@@ -83,6 +83,27 @@ class CameraViewManager :
     view.enableFreezeFrame = value
   }
 
+  @ReactProp(name = "detectionType")
+  fun setDetectionType(view: CameraView, value: String?) {
+    view.setDetectionType(value ?: "barcode")
+  }
+
+  @ReactProp(name = "cameraPosition")
+  fun setCameraPosition(view: CameraView, value: String?) {
+    view.setCameraPosition(value ?: "back")
+  }
+
+  @ReactProp(name = "faceDetection")
+  fun setFaceDetection(view: CameraView, config: com.facebook.react.bridge.ReadableMap?) {
+    if (config != null) {
+      @Suppress("UNCHECKED_CAST")
+      val map = config.toHashMap() as Map<String, Any?>
+      view.setFaceBoxConfig(FaceBoxStyle.fromMap(map))
+    } else {
+      view.setFaceBoxConfig(FaceBoxStyle())
+    }
+  }
+
   @ReactProp(name = "boundingBox")
   fun setBoundingBox(view: CameraView, config: com.facebook.react.bridge.ReadableMap?) {
     if (config != null) {
@@ -111,7 +132,9 @@ class CameraViewManager :
   override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any>? {
     return MapBuilder.of(
       "onCodeScanned",
-      MapBuilder.of("registrationName", "onCodeScanned")
+      MapBuilder.of("registrationName", "onCodeScanned"),
+      "onFacesDetected",
+      MapBuilder.of("registrationName", "onFacesDetected")
     )
   }
   

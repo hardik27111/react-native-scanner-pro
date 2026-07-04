@@ -149,6 +149,35 @@ export default function ScanOnceScreen() {
 | `enableFreezeFrame` | `boolean` | `false` | Pause camera after scan and play animation |
 | `boundingBox` | `BoundingBoxConfig` | — | Draw boxes around detected codes |
 | `scanRegion` | `ScanRegionConfig` | — | Limit scanning to a defined area |
+| `detectionType` | `'barcode' \| 'face'` | `'barcode'` | Switch between barcode and face detection |
+| `cameraPosition` | `'back' \| 'front'` | `'back'` | Camera facing (front for selfies / face mode) |
+| `faceDetection` | `FaceDetectionConfig` | — | Face overlay styling (face mode) |
+| `onFacesDetected` | `(event) => void` | — | Callback with detected faces (face mode) |
+
+---
+
+## Face detection
+
+Set `detectionType="face"` to switch from barcode scanning to on-device face detection. Use the front camera and listen for `onFacesDetected`:
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  detectionType="face"
+  cameraPosition="front"
+  faceDetection={{
+    enabled: true,
+    boxColor: '#2BE2C2',
+    showLandmarks: true,
+    showContours: true,
+  }}
+  onFacesDetected={({ faces, count }) => {
+    console.log(`Detected ${count} face(s)`);
+  }}
+/>
+```
+
+See the full [Face Detection guide](/docs/features/face-detection) for overlay options, callback payload, and platform notes.
 
 ---
 

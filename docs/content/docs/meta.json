@@ -7,6 +7,7 @@
     "features/scanner",
     "features/scan-region",
     "features/bounding-box",
+    "features/face-detection",
     "features/freeze-frame",
     "---Guides---",
     "guides/permissions",

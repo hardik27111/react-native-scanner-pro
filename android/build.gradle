@@ -161,6 +161,9 @@ dependencies {
     // On devices with Google Play Services, this can also download the CodeScanner model on-demand.
     implementation "com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1"
   // }
+
+  // Face detection (used only when detectionType="face"). Bundled model.
+  implementation "com.google.mlkit:face-detection:16.1.7"
 }
 
 task deleteCmakeCache() {
