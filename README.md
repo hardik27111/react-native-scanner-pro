@@ -37,8 +37,7 @@ cd ios && pod install
 ## Documentation
 
 Checkout full documentation page for info about feature of this library 
-https://react-native-scanner-pro.vercel.app.
-
+https://react-native-scanner-pro.vercel.app/docs
 
 ---
 

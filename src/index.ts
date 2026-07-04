@@ -23,4 +23,9 @@ export {
   type ScanResult as LegacyScanResult,
   type ScanRegionConfig,
   type BoundingBoxConfig,
+  type DetectionType,
+  type FaceDetectionConfig,
+  type FaceResult,
+  type FaceLandmarkPoint,
+  type FacesDetectedEvent,
 } from './Scanner';

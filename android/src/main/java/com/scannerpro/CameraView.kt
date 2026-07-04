@@ -69,6 +69,14 @@ class CameraView(context: Context) : FrameLayout(context) {
   var enableFreezeFrame: Boolean = false
   private var pendingTorch: Boolean = false
 
+  // Detection type ("barcode" default, "face", and future types) and camera facing.
+  private var detectionType: String = "barcode"
+  private var cameraPosition: String = "back"
+  private var faceBoxStyle: FaceBoxStyle = FaceBoxStyle()
+
+  // Held so camera position changes can rebind the use cases.
+  private var lifecycleOwner: LifecycleOwner? = null
+
 
 
   init {
@@ -135,8 +143,64 @@ class CameraView(context: Context) : FrameLayout(context) {
   }
 
   private fun syncGraphicOverlayVisibility() {
-    val show = boundingBoxLayerEnabled || scanRegionConfig.enabled
+    val faceLayerEnabled = detectionType == "face" && faceBoxStyle.enabled
+    val show = boundingBoxLayerEnabled || scanRegionConfig.enabled || faceLayerEnabled
     graphicOverlay.visibility = if (show) View.VISIBLE else View.GONE
+  }
+
+  /**
+   * Choose what to detect ("barcode" default, "face", future types).
+   * Swaps the vision processor live if the camera is already running.
+   */
+  fun setDetectionType(type: String) {
+    val normalized = type.lowercase()
+    if (normalized == detectionType) return
+    detectionType = normalized
+
+    if (isCameraBound) {
+      visionProcessor?.stop()
+      visionProcessor = createProcessor()
+      graphicOverlay.clear()
+      graphicOverlay.postInvalidate()
+    }
+  }
+
+  /**
+   * Choose camera facing ("back" default, "front"). Rebinds use cases if running.
+   */
+  fun setCameraPosition(position: String) {
+    val normalized = position.lowercase()
+    if (normalized == cameraPosition) return
+    cameraPosition = normalized
+
+    val owner = lifecycleOwner
+    if (isCameraBound && owner != null) {
+      bindUseCases(owner)
+    }
+  }
+
+  /**
+   * Set face detection box / landmark styling.
+   */
+  fun setFaceBoxConfig(style: FaceBoxStyle) {
+    faceBoxStyle = style
+    (visionProcessor as? FaceDetectorProcessor)?.faceBoxStyle = style
+    syncGraphicOverlayVisibility()
+  }
+
+  /** Build the processor matching the current [detectionType]. */
+  private fun createProcessor(): VisionProcessor<*> {
+    return when (detectionType) {
+      "face" -> FaceDetectorProcessor(
+        context,
+        onFaces = { faces -> handleFacesDetected(faces) }
+      ).apply { faceBoxStyle = this@CameraView.faceBoxStyle }
+      else -> BarcodeScannerProcessor(
+        context,
+        onStableDetection = { barcode, boundingBox -> handleStableDetection(barcode, boundingBox) },
+        onLiveDetection = { barcode, boundingBox -> handleLiveDetection(barcode, boundingBox) }
+      ).apply { setScanRegionConfig(scanRegionConfig) }
+    }
   }
 
   /**
@@ -160,20 +224,11 @@ class CameraView(context: Context) : FrameLayout(context) {
     }
 
     if (isCameraBound) return
-    
-    // Initialize barcode processor with callbacks
-    visionProcessor = BarcodeScannerProcessor(
-      context,
-      onStableDetection = { barcode, boundingBox ->
-        handleStableDetection(barcode, boundingBox)
-      },
-      onLiveDetection = { barcode, boundingBox ->
-        handleLiveDetection(barcode, boundingBox)
-      }
-    ).apply {
-      // Apply scan region config to processor
-      setScanRegionConfig(scanRegionConfig)
-    }
+
+    lifecycleOwner = owner
+
+    // Initialize processor for the current detection type (barcode by default)
+    visionProcessor = createProcessor()
 
     val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
@@ -227,7 +282,7 @@ class CameraView(context: Context) : FrameLayout(context) {
       try {
         // Update graphic overlay image source info on first frame
         if (needUpdateGraphicOverlayImageSourceInfo) {
-          val isImageFlipped = false // Set to true for front camera
+          val isImageFlipped = cameraPosition == "front"
           val rotationDegrees = imageProxy.imageInfo.rotationDegrees
           
           // CRITICAL: Swap width/height when rotation is 90 or 270 degrees
@@ -256,7 +311,11 @@ class CameraView(context: Context) : FrameLayout(context) {
       }
     }
 
-    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+    val cameraSelector = if (cameraPosition == "front") {
+      CameraSelector.DEFAULT_FRONT_CAMERA
+    } else {
+      CameraSelector.DEFAULT_BACK_CAMERA
+    }
 
     camera = provider.bindToLifecycle(
       lifecycleOwner,
@@ -287,6 +346,40 @@ class CameraView(context: Context) : FrameLayout(context) {
     }
   }
   
+  /**
+   * Handle face detection results (every frame) and emit them to React Native.
+   */
+  private fun handleFacesDetected(faces: List<FaceInfo>) {
+    val reactContext = context as? ReactContext ?: return
+
+    val facesArray = Arguments.createArray()
+    for (info in faces) {
+      val faceMap = Arguments.createMap().apply {
+        val bounds = Arguments.createMap().apply {
+          putDouble("x", info.viewRect.left.toDouble())
+          putDouble("y", info.viewRect.top.toDouble())
+          putDouble("width", info.viewRect.width().toDouble())
+          putDouble("height", info.viewRect.height().toDouble())
+        }
+        putMap("bounds", bounds)
+        putDouble("rollAngle", info.rollAngle.toDouble())
+        putDouble("yawAngle", info.yawAngle.toDouble())
+        putDouble("pitchAngle", info.pitchAngle.toDouble())
+        info.trackingId?.let { putInt("trackingId", it) }
+      }
+      facesArray.pushMap(faceMap)
+    }
+
+    val event = Arguments.createMap().apply {
+      putArray("faces", facesArray)
+      putInt("count", faces.size)
+    }
+
+    reactContext
+      .getJSModule(RCTEventEmitter::class.java)
+      .receiveEvent(id, "onFacesDetected", event)
+  }
+
   /**
    * Handle live barcode detection (every frame)
    */

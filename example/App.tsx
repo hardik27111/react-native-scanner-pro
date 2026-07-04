@@ -16,7 +16,16 @@ import {
   FlatList,
   TextInput,
 } from 'react-native';
-import {Scanner, ScanResult, BoundingBoxConfig, ScanRegionConfig} from 'react-native-scanner-pro';
+import {
+  Scanner,
+  ScanResult,
+  BoundingBoxConfig,
+  ScanRegionConfig,
+  DetectionType,
+  CameraPosition,
+  FaceDetectionConfig,
+  FacesDetectedEvent,
+} from 'react-native-scanner-pro';
 
 const {height: SCREEN_HEIGHT} = Dimensions.get('window');
 const MODAL_HEIGHT = SCREEN_HEIGHT - 100;
@@ -39,6 +48,22 @@ export default function App() {
   const [enableSound, setEnableSound] = useState(false);
   const [proScanner, setProScanner] = useState(false);
   const [enableFreezeFrame, setEnableFreezeFrame] = useState(false);
+
+  // Detection type + camera facing
+  const [detectionType, setDetectionType] = useState<DetectionType>('barcode');
+  const [cameraPosition, setCameraPosition] = useState<CameraPosition>('back');
+  const [faceCount, setFaceCount] = useState(0);
+
+  // Face detection config
+  const [fdEnabled, setFdEnabled] = useState(true);
+  const [fdBoxColor, setFdBoxColor] = useState('#2BE2C2');
+  const [fdBoxWidth, setFdBoxWidth] = useState('2');
+  const [fdBoxRadius, setFdBoxRadius] = useState('12');
+  const [fdFillColor, setFdFillColor] = useState('');
+  const [fdShowLandmarks, setFdShowLandmarks] = useState(true);
+  const [fdShowContours, setFdShowContours] = useState(true);
+  const [fdLandmarkColor, setFdLandmarkColor] = useState('#2BE2C2');
+  const [fdLandmarkRadius, setFdLandmarkRadius] = useState('3');
 
   // Bounding box config
   const [bbEnabled, setBbEnabled] = useState(true);
@@ -69,6 +94,7 @@ export default function App() {
   const [srHintText, setSrHintText] = useState('Align QR code within frame');
   const [srHintTextColor, setSrHintTextColor] = useState('#FFFFFF');
   const [srHintTextSize, setSrHintTextSize] = useState('14');
+  const [keyboardPadding, setKeyboardPadding] = useState(0);
 
   const slideAnim = useRef(new Animated.Value(MODAL_HEIGHT)).current;
   const settingsScrollRef = useRef<ScrollView>(null);
@@ -77,7 +103,6 @@ export default function App() {
   const pendingFieldRef = useRef<View | null>(null);
   const keyboardTopRef = useRef(SCREEN_HEIGHT);
   const scrollTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const [keyboardPadding, setKeyboardPadding] = useState(0);
 
   const clearScrollTimers = useCallback(() => {
     scrollTimersRef.current.forEach(clearTimeout);
@@ -255,6 +280,35 @@ export default function App() {
     });
   }, []);
 
+  const faceConfig: FaceDetectionConfig = useMemo(
+    () => ({
+      enabled: fdEnabled,
+      boxColor: fdBoxColor,
+      boxWidth: parseFloat(fdBoxWidth) || 2,
+      boxRadius: parseFloat(fdBoxRadius) || 12,
+      fillColor: fdFillColor || undefined,
+      showLandmarks: fdShowLandmarks,
+      showContours: fdShowContours,
+      landmarkColor: fdLandmarkColor,
+      landmarkRadius: parseFloat(fdLandmarkRadius) || 3,
+    }),
+    [
+      fdEnabled,
+      fdBoxColor,
+      fdBoxWidth,
+      fdBoxRadius,
+      fdFillColor,
+      fdShowLandmarks,
+      fdShowContours,
+      fdLandmarkColor,
+      fdLandmarkRadius,
+    ],
+  );
+
+  const handleFacesDetected = useCallback((event: FacesDetectedEvent) => {
+    setFaceCount(event.count);
+  }, []);
+
   if (!hasPermission) {
     return (
       <View style={styles.center}>
@@ -279,16 +333,43 @@ export default function App() {
         enableFreezeFrame={enableFreezeFrame}
         boundingBox={boundingBoxConfig}
         scanRegion={scanRegionConfig}
+        detectionType={detectionType}
+        cameraPosition={cameraPosition}
+        faceDetection={faceConfig}
         onCodeScanned={handleCodeScanned}
+        onFacesDetected={handleFacesDetected}
       />
 
       {/* Top bar */}
       <View style={styles.topBar}>
         <Text style={styles.scanCount}>
-          {scannedItems.length > 0 ? `${scannedItems.length} scanned` : ''}
+          {detectionType === 'face'
+            ? `${faceCount} face${faceCount === 1 ? '' : 's'}`
+            : `${scannedItems.length} scan${scannedItems.length === 1 ? '' : 's'}`}
         </Text>
-        <TouchableOpacity onPress={openSettings} style={styles.settingsBtn}>
+        <TouchableOpacity style={styles.settingsBtn} onPress={openSettings}>
           <Text style={styles.settingsText}>Settings</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.demoBar}>
+        <TouchableOpacity
+          style={[styles.demoBtn, detectionType === 'barcode' && styles.demoBtnOn]}
+          onPress={() => setDetectionType('barcode')}>
+          <Text style={styles.demoBtnText}>Barcode</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.demoBtn, detectionType === 'face' && styles.demoBtnOn]}
+          onPress={() => {
+            setDetectionType('face');
+            setCameraPosition('front');
+          }}>
+          <Text style={styles.demoBtnText}>Face</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.demoBtn}
+          onPress={() => setCameraPosition(p => (p === 'back' ? 'front' : 'back'))}>
+          <Text style={styles.demoBtnText}>Cam: {cameraPosition}</Text>
         </TouchableOpacity>
       </View>
 
@@ -342,6 +423,60 @@ export default function App() {
                 styles.scrollContent,
                 Platform.OS === 'android' && keyboardPadding > 0 && {paddingBottom: keyboardPadding + KEYBOARD_SCROLL_MARGIN},
               ]}>
+            <Section title="Detection">
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Mode</Text>
+                <View style={styles.modeRow}>
+                  <TouchableOpacity
+                    style={[styles.modeBtn, detectionType === 'barcode' && styles.modeBtnOn]}
+                    onPress={() => setDetectionType('barcode')}>
+                    <Text style={styles.modeBtnText}>Barcode</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modeBtn, detectionType === 'face' && styles.modeBtnOn]}
+                    onPress={() => {
+                      setDetectionType('face');
+                      setCameraPosition('front');
+                    }}>
+                    <Text style={styles.modeBtnText}>Face</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Camera</Text>
+                <View style={styles.modeRow}>
+                  <TouchableOpacity
+                    style={[styles.modeBtn, cameraPosition === 'back' && styles.modeBtnOn]}
+                    onPress={() => setCameraPosition('back')}>
+                    <Text style={styles.modeBtnText}>Back</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modeBtn, cameraPosition === 'front' && styles.modeBtnOn]}
+                    onPress={() => setCameraPosition('front')}>
+                    <Text style={styles.modeBtnText}>Front</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Section>
+
+            {detectionType === 'face' && (
+              <Section title="Face Overlay">
+                <Toggle label="Show face overlay" value={fdEnabled} onToggle={setFdEnabled} />
+                {fdEnabled && (
+                  <>
+                    <Toggle label="Show landmarks" value={fdShowLandmarks} onToggle={setFdShowLandmarks} />
+                    <Toggle label="Show contours" value={fdShowContours} onToggle={setFdShowContours} />
+                    <ColorRow label="Box color" value={fdBoxColor} onChange={setFdBoxColor} onInputFocus={handleInputFocus} />
+                    <NumberRow label="Box width" value={fdBoxWidth} onChange={setFdBoxWidth} onInputFocus={handleInputFocus} />
+                    <NumberRow label="Box radius" value={fdBoxRadius} onChange={setFdBoxRadius} onInputFocus={handleInputFocus} />
+                    <ColorRow label="Fill color (empty = none)" value={fdFillColor} onChange={setFdFillColor} onInputFocus={handleInputFocus} />
+                    <ColorRow label="Landmark color" value={fdLandmarkColor} onChange={setFdLandmarkColor} onInputFocus={handleInputFocus} />
+                    <NumberRow label="Landmark radius" value={fdLandmarkRadius} onChange={setFdLandmarkRadius} onInputFocus={handleInputFocus} />
+                  </>
+                )}
+              </Section>
+            )}
+
             <Section title="Camera">
               <Toggle label="Torch / Flashlight" value={torch} onToggle={setTorch} />
             </Section>
@@ -627,4 +762,35 @@ const styles = StyleSheet.create({
 
   infoCard: {backgroundColor: 'rgba(48,209,88,0.1)', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: 'rgba(48,209,88,0.2)'},
   infoText: {color: '#8e8e93', fontSize: 13, lineHeight: 19},
+
+  demoBar: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'center',
+  },
+  demoBtn: {backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20},
+  demoBtnOn: {backgroundColor: '#2BE2C2'},
+  demoBtnText: {color: '#fff', fontSize: 14, fontWeight: '600'},
+  facePill: {
+    position: 'absolute',
+    bottom: 50,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  modeRow: {flexDirection: 'row', gap: 8},
+  modeBtn: {
+    backgroundColor: '#3a3a3c',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  modeBtnOn: {backgroundColor: '#30d158'},
+  modeBtnText: {color: '#fff', fontSize: 13, fontWeight: '600'},
 });

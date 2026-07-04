@@ -70,13 +70,17 @@ RCT_EXPORT_VIEW_PROPERTY(proScanner,       BOOL)
 RCT_EXPORT_VIEW_PROPERTY(enableFreezeFrame, BOOL)
 RCT_EXPORT_VIEW_PROPERTY(boundingBox,      NSDictionary)
 RCT_EXPORT_VIEW_PROPERTY(scanRegion,       NSDictionary)
+RCT_EXPORT_VIEW_PROPERTY(detectionType,    NSString)
+RCT_EXPORT_VIEW_PROPERTY(cameraPosition,   NSString)
+RCT_EXPORT_VIEW_PROPERTY(faceDetection,    NSDictionary)
 
 // MARK: - Events
 // Swift declares these as ((NSDictionary) -> Void)? which is binary-compatible
 // with RCTDirectEventBlock — KVC sets them correctly without type casting.
 
-RCT_EXPORT_VIEW_PROPERTY(onCodeScanned, RCTDirectEventBlock)
-RCT_EXPORT_VIEW_PROPERTY(onError,       RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onCodeScanned,   RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onError,         RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onFacesDetected, RCTDirectEventBlock)
 
 // MARK: - Commands
 
