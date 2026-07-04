@@ -1,4 +1,4 @@
 {
   "title": "Features",
-  "pages": ["scanner", "scan-region", "bounding-box", "freeze-frame"]
+  "pages": ["scanner", "scan-region", "bounding-box", "face-detection", "freeze-frame"]
 }

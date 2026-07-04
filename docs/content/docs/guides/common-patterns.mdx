@@ -303,3 +303,57 @@ function handleScan(result) {
 ```
 
 This works well for checkout-type flows where you want to accept the same code again after a short wait.
+
+---
+
+## Face detection with live count
+
+Switch to face mode for selfie-style experiences — attendance, filters, or liveness checks:
+
+```tsx
+import React, { useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Scanner } from 'react-native-scanner-pro';
+
+export default function FaceCountScreen() {
+  const [faceCount, setFaceCount] = useState(0);
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Scanner
+        style={StyleSheet.absoluteFill}
+        detectionType="face"
+        cameraPosition="front"
+        faceDetection={{
+          enabled: true,
+          boxColor: '#2BE2C2',
+          showLandmarks: true,
+          showContours: true,
+        }}
+        onFacesDetected={({ count }) => setFaceCount(count)}
+      />
+
+      <View style={styles.badge}>
+        <Text style={styles.badgeText}>
+          {faceCount} face{faceCount === 1 ? '' : 's'}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    bottom: 48,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  badgeText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+});
+```
+
+See [Face Detection](/docs/features/face-detection) for all overlay options and platform details.

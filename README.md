@@ -3,7 +3,7 @@
 [![npm](https://img.shields.io/npm/v/react-native-scanner-pro)](https://www.npmjs.com/package/react-native-scanner-pro)
 [![license](https://img.shields.io/npm/l/react-native-scanner-pro)](./LICENSE)
 
-A React Native camera component for **QR codes and barcodes**. Android uses **CameraX** and **ML Kit**; iOS uses **AVFoundation** and **Vision**. Everything runs on the device — no API keys or cloud step.
+A React Native camera component for **QR codes, barcodes, and face detection**. Android uses **CameraX** and **ML Kit**; iOS uses **AVFoundation** and **Vision**. Everything runs on the device — no API keys or cloud step.
 
 **Requirements:** React Native **0.70+**, React **18+**. Native code is autolinked.
 
@@ -11,6 +11,7 @@ A React Native camera component for **QR codes and barcodes**. Android uses **Ca
 
 - 📷 **Drop-in `Scanner`** — full-screen camera preview with a single component
 - 🔳 **QR & barcodes** — 13+ formats (QR, EAN-13, Code 128, Data Matrix, PDF417, and more)
+- 🙂 **Face detection** — on-device face tracking with bounding box + landmark overlays (`detectionType="face"`)
 - 🎯 **Scan region** — viewfinder frame; codes outside the area are ignored
 - 🟩 **Bounding boxes** — live native overlays around detected codes
 - ⏸️ **Freeze frame** — pause the preview after a stable read, then fire your callback
@@ -128,6 +129,10 @@ ref.current?.resumeScanning();
 | `enableFreezeFrame` | `boolean` | `false` | Briefly hold the preview after a stable read. |
 | `boundingBox` | `BoundingBoxConfig` | — | Draw boxes around detections; see below. |
 | `scanRegion` | `ScanRegionConfig` | — | Draw a frame and only accept codes inside it; see below. |
+| `detectionType` | `'barcode' \| 'face'` | `'barcode'` | Switch between barcode and face detection. |
+| `cameraPosition` | `'back' \| 'front'` | `'back'` | Camera facing. Face mode usually wants `'front'`. |
+| `faceDetection` | `FaceDetectionConfig` | — | Face overlay styling when `detectionType="face"`. |
+| `onFacesDetected` | `(event: FacesDetectedEvent) => void` | — | Fires every frame with detected faces (face mode). |
 
 ### `ScanResult`
 
@@ -190,6 +195,34 @@ See the full [Scan Region docs](./docs/content/docs/features/scan-region.mdx) fo
 ```
 
 See the full [Bounding Box docs](./docs/content/docs/features/bounding-box.mdx) for all options.
+
+---
+
+## Face detection
+
+Switch to on-device face detection with one prop. Uses the front camera for selfie-style tracking:
+
+```tsx
+<Scanner
+  style={StyleSheet.absoluteFill}
+  detectionType="face"
+  cameraPosition="front"
+  faceDetection={{
+    enabled: true,
+    boxColor: '#2BE2C2',
+    showLandmarks: true,
+    showContours: true,
+    landmarkColor: '#2BE2C2',
+  }}
+  onFacesDetected={({ faces, count }) => {
+    console.log(`${count} face(s)`, faces[0]?.bounds);
+  }}
+/>
+```
+
+`onFacesDetected` fires every frame with face bounds and head angles (`rollAngle`, `yawAngle`, `pitchAngle`). Barcode props like `boundingBox` and `scanRegion` are ignored in face mode.
+
+See the full [Face Detection docs](./docs/content/docs/features/face-detection.mdx) for all options and platform notes.
 
 ---
 

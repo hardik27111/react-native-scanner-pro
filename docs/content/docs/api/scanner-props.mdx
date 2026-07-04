@@ -15,6 +15,10 @@ icon: FileCode
 | `enableFreezeFrame` | `boolean` | `false` | Pause camera after scan, play animation, then resume |
 | `boundingBox` | [`BoundingBoxConfig`](#boundingboxconfig) | — | Configuration for drawing boxes around detected codes |
 | `scanRegion` | [`ScanRegionConfig`](#scanregionconfig) | — | Configuration for restricting scanning to a defined area |
+| `detectionType` | `'barcode' \| 'face'` | `'barcode'` | What to detect. `'face'` enables on-device face detection |
+| `cameraPosition` | `'back' \| 'front'` | `'back'` | Which camera to use. Face mode usually wants `'front'` |
+| `faceDetection` | [`FaceDetectionConfig`](#facedetectionconfig) | — | Face overlay styling when `detectionType="face"` |
+| `onFacesDetected` | `(event: FacesDetectedEvent) => void` | — | Fires every frame with detected faces (face mode only) |
 
 ---
 
@@ -94,6 +98,46 @@ interface ScanResult {
 
 ---
 
+## FaceDetectionConfig
+
+Used when `detectionType="face"`. See the full [Face Detection guide](/docs/features/face-detection).
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | `boolean` | `true` | Draw face overlay graphics |
+| `boxColor` | `string` | `#2BE2C2` | Face box border color |
+| `boxWidth` | `number` | `2` | Box border thickness |
+| `boxRadius` | `number` | `12` | Rounded corner radius |
+| `fillColor` | `string` | — | Optional fill inside the box |
+| `showLandmarks` | `boolean` | `true` | Draw landmark dots (eyes, nose, mouth) |
+| `showContours` | `boolean` | `true` | Draw face outline / contour dots |
+| `landmarkColor` | `string` | `#2BE2C2` | Color of landmark and contour dots |
+| `landmarkRadius` | `number` | `3` | Radius of each dot |
+| `performanceMode` | `'fast' \| 'accurate'` | `'fast'` | Speed vs. accuracy (Android ML Kit) |
+
+---
+
+## FacesDetectedEvent
+
+```typescript
+interface FacesDetectedEvent {
+  faces: FaceResult[];
+  count: number;
+}
+
+interface FaceResult {
+  bounds: { x: number; y: number; width: number; height: number };
+  rollAngle?: number;
+  yawAngle?: number;
+  pitchAngle?: number;  // iOS 15+
+  trackingId?: number;
+}
+```
+
+Fires every camera frame in face mode. Coordinates are in view space (same as barcode `bounds`).
+
+---
+
 ## Color format
 
 All color strings follow these two formats:
@@ -111,5 +155,8 @@ The alpha value is the **last two characters**, not the first.
 |---------|-----|---------|
 | `rawBytes` in ScanResult | Not filled | Base64 string |
 | Default barcode formats | All 13 types | QR code only |
+| Face detection | Vision landmarks | ML Kit face detection |
+| `pitchAngle` in FaceResult | iOS 15+ | Always available |
+| `trackingId` in FaceResult | Not provided | When contours disabled |
 | `onError` event | Native only (not in Scanner) | Not in Scanner |
 
