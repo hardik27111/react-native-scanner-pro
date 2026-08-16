@@ -1,6 +1,6 @@
 {
   "name": "react-native-scanner-pro",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "React Native QR and barcode scanner: CameraX + ML Kit on Android, AVFoundation + Vision on iOS. Scan region, bounding boxes, torch, haptics, freeze frame.",
   "main": "index.js",
   "types": "src/index.ts",
